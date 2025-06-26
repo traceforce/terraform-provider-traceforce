@@ -46,6 +46,7 @@ func (p *traceforceProvider) Schema(ctx context.Context, req provider.SchemaRequ
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
+				Description:         "URI for Traceforce API. May also be provided via TRACEFORCE_ENDPOINT environment variable.",
 				MarkdownDescription: "Service endpoint",
 				Optional:            true,
 			},
@@ -153,7 +154,7 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 
 func (p *traceforceProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewExampleResource,
+		NewConnectionResource,
 	}
 }
 

@@ -1,3 +1,6 @@
+// Copyright (c) HashiCorp, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
@@ -39,15 +42,17 @@ type connectionsModel struct {
 	Name                types.String `tfsdk:"name"`
 	EnvironmentType     types.String `tfsdk:"environment_type"`
 	EnvironmentNativeId types.String `tfsdk:"environment_native_id"`
+	Status              types.String `tfsdk:"status"`
 }
 
 type connectionsOriginalModel struct {
-	ID                  string    `json:"id"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
+	ID                  string    `json:"id" omitempty:"true"`
+	CreatedAt           time.Time `json:"created_at" omitempty:"true"`
+	UpdatedAt           time.Time `json:"updated_at" omitempty:"true"`
 	Name                string    `json:"name"`
 	EnvironmentType     string    `json:"environment_type"`
 	EnvironmentNativeId string    `json:"environment_native_id"`
+	Status              string    `json:"status"`
 }
 
 func (d *connectionsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -84,21 +89,28 @@ func (d *connectionsDataSource) Schema(_ context.Context, _ datasource.SchemaReq
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.StringAttribute{
-							Computed: true,
+							Description: "System generated ID of the connection",
+							Computed:    true,
 						},
 						"created_at": schema.StringAttribute{
-							Computed: true,
+							Description: "Date and time the connection was created",
+							Computed:    true,
 						},
 						"updated_at": schema.StringAttribute{
-							Computed: true,
+							Description: "Date and time the connection was last updated",
+							Computed:    true,
 						},
 						"name": schema.StringAttribute{
-							Computed: true,
+							Description: "Name of the connection. This must be unique.",
+							Computed:    true,
 						},
 						"environment_type": schema.StringAttribute{
 							Computed: true,
 						},
 						"environment_native_id": schema.StringAttribute{
+							Computed: true,
+						},
+						"status": schema.StringAttribute{
 							Computed: true,
 						},
 					},
@@ -132,6 +144,7 @@ func (d *connectionsDataSource) Read(ctx context.Context, req datasource.ReadReq
 			Name:                types.StringValue(connection.Name),
 			EnvironmentType:     types.StringValue(connection.EnvironmentType),
 			EnvironmentNativeId: types.StringValue(connection.EnvironmentNativeId),
+			Status:              types.StringValue(connection.Status),
 		})
 	}
 
