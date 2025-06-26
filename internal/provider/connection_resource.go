@@ -1,4 +1,4 @@
-// Copyright (c) HashiCorp, Inc.
+// Copyright (c) Traceforce, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
 package provider
@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
@@ -19,8 +20,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &connectionResource{}
-	_ resource.ResourceWithConfigure = &connectionResource{}
+	_ resource.Resource                = &connectionResource{}
+	_ resource.ResourceWithConfigure   = &connectionResource{}
+	_ resource.ResourceWithImportState = &connectionResource{}
 )
 
 // NewConnectionResource is a helper function to simplify the provider implementation.
@@ -278,6 +280,11 @@ func (r *connectionResource) Delete(ctx context.Context, req resource.DeleteRequ
 		resp.Diagnostics.AddError("Error deleting connection", err.Error())
 		return
 	}
+}
+
+func (r *connectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	// Import connection by name and save to name attribute
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
 
 func verifyUniqueConnectionResult(result []byte) (*connectionsOriginalModel, error) {

@@ -29,8 +29,8 @@ terraform {
 }
 
 provider "traceforce" {
-  endpoint = "https://zexktzntymqvltijndxl.traceforce.ai/api/v1"
-  api_key  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpleGt0em60eW1xdmx0aWpuZHhsIiwicm9sZSI2ImFub24iLCJpYXQiOjE3NTA4MDY4MzksImV4cCI6MjA2NjM4MjgzOX0.s_CNf2JwkPQn6064T79_5gqZ8lyALxwgFSseJIHnWnk"
+  endpoint = "your_traceforce_endpoint"
+  api_key  = "your_traceforce_api_key"
 }
 
 resource "traceforce_connection" "example" {

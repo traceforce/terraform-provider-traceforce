@@ -1,4 +1,4 @@
-// Copyright (c) HashiCorp, Inc.
+// Copyright (c) Traceforce, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
 package provider
@@ -105,13 +105,16 @@ func (d *connectionsDataSource) Schema(_ context.Context, _ datasource.SchemaReq
 							Computed:    true,
 						},
 						"environment_type": schema.StringAttribute{
-							Computed: true,
+							Description: "Type of environment the connection is connected to. For example, AWS, Azure, GCP, etc.",
+							Computed:    true,
 						},
 						"environment_native_id": schema.StringAttribute{
-							Computed: true,
+							Description: "Native ID of the environment the connection is connected to. For example, an AWS account ID, an Azure subscription ID, a GCP project ID, etc.",
+							Computed:    true,
 						},
 						"status": schema.StringAttribute{
-							Computed: true,
+							Description: "Status of the connection. For example, connected, disconnected, etc.",
+							Computed:    true,
 						},
 					},
 				},

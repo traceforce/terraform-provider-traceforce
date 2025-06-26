@@ -1,4 +1,4 @@
-// Copyright (c) HashiCorp, Inc.
+// Copyright (c) Traceforce, Inc.
 // SPDX-License-Identifier: MPL-2.0
 
 package provider
@@ -51,6 +51,7 @@ func (p *traceforceProvider) Schema(ctx context.Context, req provider.SchemaRequ
 				Optional:            true,
 			},
 			"api_key": schema.StringAttribute{
+				Description:         "API key to the service. May also be provided via TRACEFORCE_API_KEY environment variable.",
 				MarkdownDescription: "API key to the service",
 				Optional:            true,
 			},
@@ -159,9 +160,7 @@ func (p *traceforceProvider) Resources(ctx context.Context) []func() resource.Re
 }
 
 func (p *traceforceProvider) EphemeralResources(ctx context.Context) []func() ephemeral.EphemeralResource {
-	return []func() ephemeral.EphemeralResource{
-		NewExampleEphemeralResource,
-	}
+	return []func() ephemeral.EphemeralResource{}
 }
 
 func (p *traceforceProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
@@ -171,9 +170,7 @@ func (p *traceforceProvider) DataSources(ctx context.Context) []func() datasourc
 }
 
 func (p *traceforceProvider) Functions(ctx context.Context) []func() function.Function {
-	return []func() function.Function{
-		NewExampleFunction,
-	}
+	return []func() function.Function{}
 }
 
 func New(version string) func() provider.Provider {
