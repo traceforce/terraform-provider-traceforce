@@ -29,11 +29,11 @@ terraform {
 }
 
 provider "traceforce" {
-  endpoint = "your_traceforce_endpoint"
   api_key  = "your_traceforce_api_key"
 }
 
 resource "traceforce_connection" "example" {
+  id                    = "cf7d6745-7591-461c-af9d-232769b654cc"
   name                  = "example"
   environment_type      = "AWS"
   environment_native_id = "9876543210"

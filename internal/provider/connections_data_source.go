@@ -5,14 +5,13 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	supabase "github.com/supabase-community/supabase-go"
+	traceforce "github.com/traceforce/traceforce-go-sdk"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -26,7 +25,7 @@ func NewConnectionsDataSource() datasource.DataSource {
 }
 
 type connectionsDataSource struct {
-	client *supabase.Client
+	client *traceforce.Client
 }
 
 // connectionsDataSourceModel maps the data source schema data.
@@ -45,16 +44,6 @@ type connectionsModel struct {
 	Status              types.String `tfsdk:"status"`
 }
 
-type connectionsOriginalModel struct {
-	ID                  string    `json:"id" omitempty:"true"`
-	CreatedAt           time.Time `json:"created_at" omitempty:"true"`
-	UpdatedAt           time.Time `json:"updated_at" omitempty:"true"`
-	Name                string    `json:"name"`
-	EnvironmentType     string    `json:"environment_type"`
-	EnvironmentNativeId string    `json:"environment_native_id"`
-	Status              string    `json:"status"`
-}
-
 func (d *connectionsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_connections"
 }
@@ -67,11 +56,11 @@ func (d *connectionsDataSource) Configure(_ context.Context, req datasource.Conf
 		return
 	}
 
-	client, ok := req.ProviderData.(*supabase.Client)
+	client, ok := req.ProviderData.(*traceforce.Client)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *supabase.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected *traceforce.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 
 		return
@@ -125,16 +114,9 @@ func (d *connectionsDataSource) Schema(_ context.Context, _ datasource.SchemaReq
 
 func (d *connectionsDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	// Select all connections
-	result, _, err := d.client.From("connections").Select("*", "", false).Execute()
+	connections, err := d.client.GetConnections()
 	if err != nil {
-		resp.Diagnostics.AddError("Error selecting connections", err.Error())
-		return
-	}
-
-	var connections []connectionsOriginalModel
-	err = json.Unmarshal(result, &connections)
-	if err != nil {
-		resp.Diagnostics.AddError("Error parsing connections", err.Error())
+		resp.Diagnostics.AddError("Error reading connections", err.Error())
 		return
 	}
 

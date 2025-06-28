@@ -7,25 +7,16 @@ terraform {
 }
 
 provider "traceforce" {
-  endpoint = "https://zexktzntymqvltijndxl.supabase.co"
-  api_key  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpleGt0em50eW1xdmx0aWpuZHhsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4MDY4MzksImV4cCI6MjA2NjM4MjgzOX0.s_CNf2JwkPQn6064T79_5gqZ8lyALxwgFSseJIHnWnk"
+  api_key  = "eyJhbGciOiJIUzI1NiIsImtpZCI6ImFRMUxOVzFFY3hCT1hhRzQiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3pleGt0em50eW1xdmx0aWpuZHhsLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiJlZDliNDJiNi05OTFmLTQzOWUtOTRlMy0zZDMxZWZjNWJiMWYiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzUxMTQ2Mzg3LCJpYXQiOjE3NTExNDI3ODcsImVtYWlsIjoieGlhQHRyYWNlZm9yY2UuYWkiLCJwaG9uZSI6IiIsImFwcF9tZXRhZGF0YSI6eyJwcm92aWRlciI6ImVtYWlsIiwicHJvdmlkZXJzIjpbImVtYWlsIl19LCJ1c2VyX21ldGFkYXRhIjp7ImVtYWlsIjoieGlhQHRyYWNlZm9yY2UuYWkiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGhvbmVfdmVyaWZpZWQiOmZhbHNlLCJzdWIiOiJlZDliNDJiNi05OTFmLTQzOWUtOTRlMy0zZDMxZWZjNWJiMWYifSwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJhYWwiOiJhYWwxIiwiYW1yIjpbeyJtZXRob2QiOiJwYXNzd29yZCIsInRpbWVzdGFtcCI6MTc1MTE0Mjc4N31dLCJzZXNzaW9uX2lkIjoiMDk2YTI2MTQtN2ZkNS00NjAyLThiYjUtZDk1NzYyOTlkYmQ4IiwiaXNfYW5vbnltb3VzIjpmYWxzZX0.4kDR_hghqFQ9-5yJ9dGGxlMZOS6Q0ysBHw4v97mzejU"
 }
 
 resource "traceforce_connection" "example-aws" {
+  id                    = "cf7d6745-7591-461c-af9d-232769b654cc"
   name                  = "example"
   environment_type      = "AWS"
   environment_native_id = "9876543210"
   status                = "disconnected"
 }
-
-resource "traceforce_connection" "example-gcp" {
-  id                    = "a5d1ed31-5400-4fd2-b0d6-b795931e1f21"
-  name                  = "test-connection-1"
-  environment_type      = "GCP"
-  environment_native_id = "test-project-1"
-  status                = "connected"
-}
-
 
 data "traceforce_connections" "example" {}
 
@@ -35,8 +26,4 @@ output "connections" {
 
 output "connection-aws" {
   value = traceforce_connection.example-aws
-}
-
-output "connection-gcp" {
-  value = traceforce_connection.example-gcp
 }

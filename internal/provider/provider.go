@@ -7,6 +7,8 @@ import (
 	"context"
 	"os"
 
+	traceforce "github.com/traceforce/traceforce-go-sdk"
+
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/function"
@@ -15,7 +17,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	supabase "github.com/supabase-community/supabase-go"
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 // Ensure traceforceProvider satisfies various provider interfaces.
@@ -45,14 +47,15 @@ func (p *traceforceProvider) Metadata(ctx context.Context, req provider.Metadata
 func (p *traceforceProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"endpoint": schema.StringAttribute{
-				Description:         "URI for Traceforce API. May also be provided via TRACEFORCE_ENDPOINT environment variable.",
-				MarkdownDescription: "Service endpoint",
-				Optional:            true,
-			},
 			"api_key": schema.StringAttribute{
 				Description:         "API key to the service. May also be provided via TRACEFORCE_API_KEY environment variable.",
 				MarkdownDescription: "API key to the service",
+				Required:            true,
+				Optional:            false,
+			},
+			"endpoint": schema.StringAttribute{
+				Description:         "URI for Traceforce API. May also be provided via TRACEFORCE_ENDPOINT environment variable.",
+				MarkdownDescription: "Service endpoint",
 				Optional:            true,
 			},
 		},
@@ -111,12 +114,9 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 	// errors with provider-specific guidance.
 
 	if endpoint == "" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("endpoint"),
-			"Missing Traceforce API endpoint",
-			"The provider cannot create the Traceforce API client as there is a missing or empty value for the Traceforce API endpoint. "+
-				"Set the endpoint value in the configuration or use the TRACEFORCE_ENDPOINT environment variable. "+
-				"If either is already set, ensure the value is not empty.",
+		tflog.Info(ctx,
+			"The provider will use the default Traceforce API endpoint. If you want to use a different endpoint, "+
+				"Set the endpoint value in the configuration or use the TRACEFORCE_ENDPOINT environment variable.",
 		)
 	}
 
@@ -134,9 +134,7 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 		return
 	}
 
-	// Todo: replace with traceforce client later
-	// https://carolxiahua.atlassian.net/browse/PFT-123
-	client, err := supabase.NewClient(endpoint, apiKey, nil)
+	client, err := traceforce.NewClient(apiKey, endpoint, nil)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create Traceforce API Client",

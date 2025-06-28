@@ -5,17 +5,14 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	supabase "github.com/supabase-community/supabase-go"
+	traceforce "github.com/traceforce/traceforce-go-sdk"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -32,7 +29,7 @@ func NewConnectionResource() resource.Resource {
 
 // connectionResource is the resource implementation.
 type connectionResource struct {
-	client *supabase.Client
+	client *traceforce.Client
 }
 
 // connectionResourceModel maps connections schema data.
@@ -58,7 +55,7 @@ func (r *connectionResource) Configure(ctx context.Context, req resource.Configu
 		return
 	}
 
-	client, ok := req.ProviderData.(*supabase.Client)
+	client, ok := req.ProviderData.(*traceforce.Client)
 
 	if !ok {
 		resp.Diagnostics.AddError(
@@ -78,8 +75,7 @@ func (r *connectionResource) Schema(_ context.Context, _ resource.SchemaRequest,
 		Attributes: map[string]schema.Attribute{
 			"id": schema.StringAttribute{
 				Description: "System generated ID of the connection",
-				Computed:    true,
-				Optional:    true,
+				Required:    true,
 			},
 			"created_at": schema.StringAttribute{
 				Description: "Date and time the connection was created",
@@ -122,8 +118,8 @@ func (r *connectionResource) Create(ctx context.Context, req resource.CreateRequ
 	}
 
 	// Generate API request body from plan
-	connection := &connectionsOriginalModel{
-		ID:                  uuid.New().String(),
+	input := traceforce.ConnectionsModel{
+		ID:                  plan.ID.ValueString(),
 		CreatedAt:           time.Now(),
 		UpdatedAt:           time.Now(),
 		Name:                plan.Name.ValueString(),
@@ -133,15 +129,9 @@ func (r *connectionResource) Create(ctx context.Context, req resource.CreateRequ
 	}
 
 	// Insert connection
-	result, _, err := r.client.From("connections").Insert(connection, false, "", "", "").Execute()
+	connection, err := r.client.CreateConnection(input)
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating connection", err.Error())
-		return
-	}
-
-	connection, err = verifyUniqueConnectionResult(result)
-	if err != nil {
-		resp.Diagnostics.AddError("Error verifying result during creation", err.Error())
 		return
 	}
 
@@ -173,16 +163,9 @@ func (r *connectionResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	// Get connection from API
-	result, _, err := r.client.From("connections").Select("*", "", false).Eq("id", state.ID.ValueString()).Execute()
+	connection, err := r.client.GetConnection(state.ID.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Error selecting connections", err.Error())
-		return
-	}
-
-	connection, err := verifyUniqueConnectionResult(result)
-	if err != nil {
-		resp.Diagnostics.AddError("Error verifying connection during read", err.Error())
+		resp.Diagnostics.AddError("Error reading a single connection by id", err.Error())
 		return
 	}
 
@@ -215,34 +198,22 @@ func (r *connectionResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	// Get connection from API
-	result, _, err := r.client.From("connections").Select("*", "", false).Eq("name", plan.Name.ValueString()).Execute()
+	input, err := r.client.GetConnection(plan.ID.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Error selecting connections", err.Error())
+		resp.Diagnostics.AddError("Error reading a single connection by id", err.Error())
 		return
 	}
 
-	connection, err := verifyUniqueConnectionResult(result)
-	if err != nil {
-		resp.Diagnostics.AddError("Error verifying connection during update", err.Error())
-		return
-	}
-
-	connection.UpdatedAt = time.Now()
-	connection.Name = plan.Name.ValueString()
-	connection.EnvironmentType = plan.EnvironmentType.ValueString()
-	connection.EnvironmentNativeId = plan.EnvironmentNativeId.ValueString()
-	connection.Status = plan.Status.ValueString()
+	input.UpdatedAt = time.Now()
+	input.Name = plan.Name.ValueString()
+	input.EnvironmentType = plan.EnvironmentType.ValueString()
+	input.EnvironmentNativeId = plan.EnvironmentNativeId.ValueString()
+	input.Status = plan.Status.ValueString()
 
 	// Update connection
-	result, _, err = r.client.From("connections").Update(connection, plan.ID.ValueString(), "").Eq("name", plan.Name.ValueString()).Execute()
+	connection, err := r.client.UpdateConnection(input.ID, *input)
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating connection", err.Error())
-		return
-	}
-
-	connection, err = verifyUniqueConnectionResult(result)
-	if err != nil {
-		resp.Diagnostics.AddError("Error verifying connection during update", err.Error())
 		return
 	}
 
@@ -275,7 +246,7 @@ func (r *connectionResource) Delete(ctx context.Context, req resource.DeleteRequ
 	}
 
 	// Delete connection
-	_, _, err := r.client.From("connections").Delete("", "").Eq("name", state.Name.ValueString()).Execute()
+	err := r.client.DeleteConnection(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error deleting connection", err.Error())
 		return
@@ -285,22 +256,4 @@ func (r *connectionResource) Delete(ctx context.Context, req resource.DeleteRequ
 func (r *connectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Import connection by name and save to name attribute
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
-}
-
-func verifyUniqueConnectionResult(result []byte) (*connectionsOriginalModel, error) {
-	var connections []connectionsOriginalModel
-	err := json.Unmarshal(result, &connections)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(connections) == 0 {
-		return nil, nil
-	}
-
-	if len(connections) > 1 {
-		return nil, nil
-	}
-
-	return &connections[0], nil
 }
