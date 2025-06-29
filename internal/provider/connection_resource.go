@@ -11,6 +11,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	traceforce "github.com/traceforce/traceforce-go-sdk"
 )
@@ -73,22 +75,8 @@ func (r *connectionResource) Configure(ctx context.Context, req resource.Configu
 func (r *connectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"id": schema.StringAttribute{
-				Description: "System generated ID of the connection",
-				Required:    true,
-			},
-			"created_at": schema.StringAttribute{
-				Description: "Date and time the connection was created",
-				Computed:    true,
-				Optional:    true,
-			},
-			"updated_at": schema.StringAttribute{
-				Description: "Date and time the connection was last updated",
-				Computed:    true,
-				Optional:    true,
-			},
 			"name": schema.StringAttribute{
-				Description: "Name of the connection. This must be unique.",
+				Description: "Name of the connection. This value must be unique.",
 				Required:    true,
 			},
 			"environment_type": schema.StringAttribute{
@@ -102,6 +90,32 @@ func (r *connectionResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"status": schema.StringAttribute{
 				Description: "Status of the connection. For example, connected, disconnected, etc.",
 				Required:    true,
+			},
+			// The following attributes are computed and should never be reflected in changes.
+			//e need to set them to unknown when the resource is created
+			"id": schema.StringAttribute{
+				Description: "System generated ID of the connection",
+				Computed:    true,
+				Optional:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"created_at": schema.StringAttribute{
+				Description: "Date and time the connection was created",
+				Computed:    true,
+				Optional:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"updated_at": schema.StringAttribute{
+				Description: "Date and time the connection was last updated",
+				Computed:    true,
+				Optional:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -119,13 +133,12 @@ func (r *connectionResource) Create(ctx context.Context, req resource.CreateRequ
 
 	// Generate API request body from plan
 	input := traceforce.ConnectionsModel{
-		ID:                  plan.ID.ValueString(),
-		CreatedAt:           time.Now(),
-		UpdatedAt:           time.Now(),
 		Name:                plan.Name.ValueString(),
 		EnvironmentType:     plan.EnvironmentType.ValueString(),
 		EnvironmentNativeId: plan.EnvironmentNativeId.ValueString(),
 		Status:              plan.Status.ValueString(),
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
 	}
 
 	// Insert connection
@@ -163,7 +176,7 @@ func (r *connectionResource) Read(ctx context.Context, req resource.ReadRequest,
 		return
 	}
 
-	connection, err := r.client.GetConnection(state.ID.ValueString())
+	connection, err := r.client.GetConnectionByName(state.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading a single connection by id", err.Error())
 		return
@@ -198,17 +211,18 @@ func (r *connectionResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	// Get connection from API
-	input, err := r.client.GetConnection(plan.ID.ValueString())
+	input, err := r.client.GetConnectionByName(plan.Name.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading a single connection by id", err.Error())
 		return
 	}
 
-	input.UpdatedAt = time.Now()
+	input.ID = plan.ID.ValueString()
 	input.Name = plan.Name.ValueString()
 	input.EnvironmentType = plan.EnvironmentType.ValueString()
 	input.EnvironmentNativeId = plan.EnvironmentNativeId.ValueString()
 	input.Status = plan.Status.ValueString()
+	input.UpdatedAt = time.Now()
 
 	// Update connection
 	connection, err := r.client.UpdateConnection(input.ID, *input)
@@ -245,8 +259,14 @@ func (r *connectionResource) Delete(ctx context.Context, req resource.DeleteRequ
 		return
 	}
 
+	connection, err := r.client.GetConnectionByName(state.Name.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Error reading a single connection by id", err.Error())
+		return
+	}
+
 	// Delete connection
-	err := r.client.DeleteConnection(state.ID.ValueString())
+	err = r.client.DeleteConnection(connection.ID)
 	if err != nil {
 		resp.Diagnostics.AddError("Error deleting connection", err.Error())
 		return
@@ -255,5 +275,5 @@ func (r *connectionResource) Delete(ctx context.Context, req resource.DeleteRequ
 
 func (r *connectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	// Import connection by name and save to name attribute
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	resource.ImportStatePassthroughWithIdentity(ctx, path.Root("name"), path.Root("id"), req, resp)
 }
