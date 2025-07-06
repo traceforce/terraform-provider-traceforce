@@ -102,11 +102,11 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 	endpoint := os.Getenv("TRACEFORCE_ENDPOINT")
 	apiKey := os.Getenv("TRACEFORCE_API_KEY")
 
-	if !config.Endpoint.IsNull() {
+	if !config.Endpoint.IsNull() && config.Endpoint.ValueString() != "" {
 		endpoint = config.Endpoint.ValueString()
 	}
 
-	if !config.ApiKey.IsNull() {
+	if !config.ApiKey.IsNull() && config.ApiKey.ValueString() != "" {
 		apiKey = config.ApiKey.ValueString()
 	}
 
