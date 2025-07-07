@@ -213,12 +213,10 @@ func (r *connectionResource) Update(ctx context.Context, req resource.UpdateRequ
 	// Get connection from API
 	input, err := r.client.GetConnectionByName(plan.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Error reading a single connection by id", err.Error())
+		resp.Diagnostics.AddError("Error reading a single connection by name", err.Error())
 		return
 	}
 
-	input.ID = plan.ID.ValueString()
-	input.Name = plan.Name.ValueString()
 	input.EnvironmentType = plan.EnvironmentType.ValueString()
 	input.EnvironmentNativeId = plan.EnvironmentNativeId.ValueString()
 	input.Status = plan.Status.ValueString()

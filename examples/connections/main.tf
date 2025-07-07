@@ -6,15 +6,20 @@ terraform {
   }
 }
 
-provider "traceforce" {
-  api_key  = "eyJhbGciOiJIUzI1NiIsImtpZCI6ImFRMUxOVzFFY3hCT1hhRzQiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3pleGt0em50eW1xdmx0aWpuZHhsLnN1cGFiYXNlLmNvL2F1dGgvdjEiLCJzdWIiOiJlZDliNDJiNi05OTFmLTQzOWUtOTRlMy0zZDMxZWZjNWJiMWYiLCJhdWQiOiJhdXRoZW50aWNhdGVkIiwiZXhwIjoxNzUxMjM0NTg0LCJpYXQiOjE3NTEyMzA5ODQsImVtYWlsIjoieGlhQHRyYWNlZm9yY2UuYWkiLCJwaG9uZSI6IiIsImFwcF9tZXRhZGF0YSI6eyJwcm92aWRlciI6ImVtYWlsIiwicHJvdmlkZXJzIjpbImVtYWlsIl19LCJ1c2VyX21ldGFkYXRhIjp7ImVtYWlsIjoieGlhQHRyYWNlZm9yY2UuYWkiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGhvbmVfdmVyaWZpZWQiOmZhbHNlLCJzdWIiOiJlZDliNDJiNi05OTFmLTQzOWUtOTRlMy0zZDMxZWZjNWJiMWYifSwicm9sZSI6ImF1dGhlbnRpY2F0ZWQiLCJhYWwiOiJhYWwxIiwiYW1yIjpbeyJtZXRob2QiOiJwYXNzd29yZCIsInRpbWVzdGFtcCI6MTc1MTIzMDk4NH1dLCJzZXNzaW9uX2lkIjoiMDQyZGU5NjktNjAzZS00ZmRkLTk4ZmItNzE0MDhlY2UzMjYzIiwiaXNfYW5vbnltb3VzIjpmYWxzZX0.zT_BowQNqq-ByWrZTNZOIzOyNzPh1FzlLFgpS5c_BvE"
-}
+provider "traceforce" {}
 
 resource "traceforce_connection" "example-aws" {
   name                  = "example"
   environment_type      = "AWS"
   environment_native_id = "9876543210"
   status                = "disconnected"
+}
+
+resource "traceforce_post_connection" "post-connection-example-aws" {
+  name                  = "example"
+  environment_type      = "AWS"
+  environment_native_id = "9876543211"
+  depends_on            = [traceforce_connection.example-aws]
 }
 
 data "traceforce_connections" "example" {}
@@ -25,4 +30,8 @@ output "connections" {
 
 output "connection-aws" {
   value = traceforce_connection.example-aws
+}
+
+output "post-connection-aws" {
+  value = traceforce_post_connection.post-connection-example-aws
 }

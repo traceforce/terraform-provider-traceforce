@@ -30,9 +30,9 @@ data "traceforce_connections" "all_connections" {}
 Read-Only:
 
 - `created_at` (String) Date and time the connection was created
-- `environment_native_id` (String)
-- `environment_type` (String)
+- `environment_native_id` (String) Native ID of the environment the connection is connected to. For example, an AWS account ID, an Azure subscription ID, a GCP project ID, etc.
+- `environment_type` (String) Type of environment the connection is connected to. For example, AWS, Azure, GCP, etc.
 - `id` (String) System generated ID of the connection
 - `name` (String) Name of the connection. This must be unique.
-- `status` (String)
+- `status` (String) Status of the connection. For example, connected, disconnected, etc.
 - `updated_at` (String) Date and time the connection was last updated
