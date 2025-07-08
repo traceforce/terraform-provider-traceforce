@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     traceforce = {
-      source = "hashicorp.com/edu/traceforce"
+      source = "registry.terraform.io/traceforce/traceforce"
     }
   }
 }
