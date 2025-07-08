@@ -15,9 +15,10 @@
 go install
 ```
 
-Then commit the changes to `go.mod` and `go.sum`.
+This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
 
 ## Using the provider
+First get the API key from https://www.traceforce.co and set `TRACEFORCE_API_KEY=<your_api_key>`.
 
 ```terraform
 terraform {
@@ -28,9 +29,7 @@ terraform {
   }
 }
 
-provider "traceforce" {
-  api_key  = "your_traceforce_api_key"
-}
+provider "traceforce" {}
 
 resource "traceforce_connection" "example" {
   name                  = "example"
