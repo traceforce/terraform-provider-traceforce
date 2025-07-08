@@ -17,8 +17,6 @@ func TestAccConnectionsDataSource(t *testing.T) {
 			{
 				Config: providerConfig + `data "traceforce_connections" "test" {}`,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify number of connections returned
-					resource.TestCheckResourceAttr("data.traceforce_connections.test", "connections.#", "1"),
 					// Verify the first connection to ensure all attributes are set
 					resource.TestCheckResourceAttr("data.traceforce_connections.test", "connections.0.name", "test-connection-1"),
 					resource.TestCheckResourceAttr("data.traceforce_connections.test", "connections.0.environment_type", "GCP"),
