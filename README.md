@@ -15,9 +15,10 @@
 go install
 ```
 
-Then commit the changes to `go.mod` and `go.sum`.
+This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
 
 ## Using the provider
+First get the API key from https://www.traceforce.co and set `TRACEFORCE_API_KEY=<your_api_key>`.
 
 ```terraform
 terraform {
@@ -28,9 +29,7 @@ terraform {
   }
 }
 
-provider "traceforce" {
-  api_key  = "your_traceforce_api_key"
-}
+provider "traceforce" {}
 
 resource "traceforce_connection" "example" {
   name                  = "example"
@@ -48,20 +47,4 @@ output "connections" {
 output "new_connection" {
   value = traceforce_connection.example
 }
-```
-
-## Developing the Provider
-
-If you wish to work on the provider, you'll first need [Go](http://www.golang.org) installed on your machine (see [Requirements](#requirements) above).
-
-To compile the provider, run `go install`. This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
-
-To generate or update documentation, run `make generate`.
-
-In order to run the full suite of Acceptance tests, run `make testacc`.
-
-*Note:* Acceptance tests create real resources, and often cost money to run.
-
-```shell
-make testacc
 ```
