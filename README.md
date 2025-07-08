@@ -15,7 +15,7 @@
 go install
 ```
 
-Then commit the changes to `go.mod` and `go.sum`.
+This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
 
 ## Using the provider
 
