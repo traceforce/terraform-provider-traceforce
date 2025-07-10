@@ -18,7 +18,7 @@ go install
 This will build the provider and put the provider binary in the `$GOPATH/bin` directory.
 
 ## Using the provider
-First get the API key from https://www.traceforce.co and set TRACEFORCE_API_KEY=<your_api_key>.
+First get the API key from https://www.traceforce.co and set `TRACEFORCE_API_KEY=<your_api_key>`.
 
 ```terraform
 terraform {
