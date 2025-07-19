@@ -63,16 +63,8 @@ func (r *postConnectionResource) Configure(ctx context.Context, req resource.Con
 func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"name": schema.StringAttribute{
-				Description: "Name of the connection. This value must be unique.",
-				Required:    true,
-			},
-			"environment_type": schema.StringAttribute{
-				Description: "Type of environment the connection is connected to. For example, AWS, Azure, GCP, etc.",
-				Required:    true,
-			},
-			"environment_native_id": schema.StringAttribute{
-				Description: "Native ID of the environment the connection is connected to. For example, an AWS account ID, an Azure subscription ID, a GCP project ID, etc.",
+			"hosting_environment_id": schema.StringAttribute{
+				Description: "ID of the hosting environment to post-connect.",
 				Required:    true,
 			},
 			// The following attributes are computed and should never be reflected in changes.
@@ -119,15 +111,8 @@ func (r *postConnectionResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	// Get hosting environment by name to get the ID
-	env, err := r.client.GetHostingEnvironmentByName(plan.Name.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Error reading hosting environment by name", err.Error())
-		return
-	}
-
-	// Execute post-connection process
-	connection, err := r.client.PostConnection(env.ID)
+	// Execute post-connection process using the hosting environment ID
+	connection, err := r.client.PostConnection(plan.HostingEnvironmentID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error executing post-connection", err.Error())
 		return
@@ -139,6 +124,7 @@ func (r *postConnectionResource) Create(ctx context.Context, req resource.Create
 	}
 
 	plan = projectResourceModel{
+		HostingEnvironmentID:             plan.HostingEnvironmentID,
 		ID:                               types.StringValue(connection.ID),
 		CreatedAt:                        types.StringValue(connection.CreatedAt.Format(time.RFC3339)),
 		UpdatedAt:                        types.StringValue(connection.UpdatedAt.Format(time.RFC3339)),

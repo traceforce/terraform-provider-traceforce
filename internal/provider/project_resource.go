@@ -87,6 +87,7 @@ func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					traceforce.HostingEnvironmentTypeCustomerManaged,
 					traceforce.HostingEnvironmentTypeTraceForceManaged),
 				Required:    true,
+				ForceNew:    true,
 			},
 			"cloud_provider": schema.StringAttribute{
 				Description: fmt.Sprintf("Cloud provider for the project. Valid values: %s, %s, %s.", 
@@ -94,10 +95,12 @@ func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					traceforce.CloudProviderGCP,
 					traceforce.CloudProviderAzure),
 				Required:    true,
+				ForceNew:    true,
 			},
 			"native_id": schema.StringAttribute{
 				Description: "Native ID of the cloud project. For example, an AWS account ID, an Azure subscription ID, a GCP project ID, etc.",
 				Required:    true,
+				ForceNew:    true,
 			},
 			// The following attributes are computed and should never be reflected in changes.
 			"status": schema.StringAttribute{
@@ -149,7 +152,6 @@ func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 	}
 }
 
-// Create creates the resource and sets the initial Terraform state.
 func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan projectResourceModel
 
@@ -159,16 +161,13 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 		return
 	}
 
-	// Generate API request body from plan
-	input := traceforce.HostingEnvironment{
+	input := traceforce.CreateHostingEnvironmentRequest{
 		Name:          plan.Name.ValueString(),
 		Type:          traceforce.HostingEnvironmentType(plan.Type.ValueString()),
 		CloudProvider: traceforce.CloudProvider(plan.CloudProvider.ValueString()),
 		NativeID:      plan.NativeId.ValueString(),
-		Status:        traceforce.HostingEnvironmentStatusPending,
 	}
 
-	// Create hosting environment (project)
 	project, err := r.client.CreateHostingEnvironment(input)
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating hosting environment", err.Error())
@@ -189,7 +188,6 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 		UpdatedAt:                        types.StringValue(project.UpdatedAt.Format(time.RFC3339)),
 	}
 
-	// Set state
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -207,7 +205,6 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 		return
 	}
 
-	// Get hosting environment by ID
 	project, err := r.client.GetHostingEnvironment(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading hosting environment", err.Error())
@@ -228,7 +225,6 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 		UpdatedAt:                        types.StringValue(project.UpdatedAt.Format(time.RFC3339)),
 	}
 
-	// Set state
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -236,7 +232,6 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 }
 
-// Update updates the resource and sets the updated Terraform state on success.
 func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan projectResourceModel
 
@@ -246,17 +241,13 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 		return
 	}
 
-	// Generate update request from complete user-specified state
-	input := traceforce.HostingEnvironment{
-		ID:            plan.ID.ValueString(),
-		Name:          plan.Name.ValueString(),
-		Type:          traceforce.HostingEnvironmentType(plan.Type.ValueString()),
-		CloudProvider: traceforce.CloudProvider(plan.CloudProvider.ValueString()),
-		NativeID:      plan.NativeId.ValueString(),
+	name := plan.Name.ValueString()
+
+	input := traceforce.UpdateHostingEnvironmentRequest{
+		Name: &name,
 	}
 
-	// Update hosting environment
-	project, err := r.client.UpdateHostingEnvironment(input.ID, input)
+	project, err := r.client.UpdateHostingEnvironment(plan.ID.ValueString(), input)
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating hosting environment", err.Error())
 		return
@@ -276,7 +267,6 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 		UpdatedAt:                        types.StringValue(project.UpdatedAt.Format(time.RFC3339)),
 	}
 
-	// Set state
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -284,7 +274,6 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 }
 
-// Delete deletes the resource and removes the Terraform state on success.
 func (r *projectResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state projectResourceModel
 
@@ -294,7 +283,6 @@ func (r *projectResource) Delete(ctx context.Context, req resource.DeleteRequest
 		return
 	}
 
-	// Delete hosting environment
 	err := r.client.DeleteHostingEnvironment(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error deleting hosting environment", err.Error())

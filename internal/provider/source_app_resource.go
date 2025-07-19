@@ -78,11 +78,13 @@ func (r *sourceAppResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"datalake_id": schema.StringAttribute{
 				Description: "ID of the datalake this source app belongs to.",
 				Required:    true,
+				ForceNew:    true,
 			},
 			"type": schema.StringAttribute{
 				Description: fmt.Sprintf("Type of source app. Currently supported: %s.", 
 					traceforce.SourceAppTypeSalesforce),
 				Required:    true,
+				ForceNew:    true,
 			},
 			"name": schema.StringAttribute{
 				Description: "Name of the source app. This value must be unique within a datalake.",
@@ -124,7 +126,6 @@ func (r *sourceAppResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 	}
 }
 
-// Create creates the resource and sets the initial Terraform state.
 func (r *sourceAppResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan sourceAppResourceModel
 
@@ -134,15 +135,12 @@ func (r *sourceAppResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	// Generate API request body from plan
-	input := traceforce.SourceApp{
+	input := traceforce.CreateSourceAppRequest{
 		DatalakeID: plan.DatalakeId.ValueString(),
 		Type:       traceforce.SourceAppType(plan.Type.ValueString()),
 		Name:       plan.Name.ValueString(),
-		Status:     traceforce.SourceAppStatusPending,
 	}
 
-	// Create source app
 	sourceApp, err := r.client.CreateSourceApp(input)
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating source app", err.Error())
@@ -159,7 +157,6 @@ func (r *sourceAppResource) Create(ctx context.Context, req resource.CreateReque
 		UpdatedAt:  types.StringValue(sourceApp.UpdatedAt.Format(time.RFC3339)),
 	}
 
-	// Set state
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -167,7 +164,6 @@ func (r *sourceAppResource) Create(ctx context.Context, req resource.CreateReque
 	}
 }
 
-// Read refreshes the Terraform state with the latest data.
 func (r *sourceAppResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state sourceAppResourceModel
 
@@ -177,7 +173,6 @@ func (r *sourceAppResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	// Get source app by ID
 	sourceApp, err := r.client.GetSourceApp(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading source app", err.Error())
@@ -194,7 +189,6 @@ func (r *sourceAppResource) Read(ctx context.Context, req resource.ReadRequest, 
 		UpdatedAt:  types.StringValue(sourceApp.UpdatedAt.Format(time.RFC3339)),
 	}
 
-	// Set state
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -202,7 +196,6 @@ func (r *sourceAppResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 }
 
-// Update updates the resource and sets the updated Terraform state on success.
 func (r *sourceAppResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan sourceAppResourceModel
 
@@ -212,16 +205,13 @@ func (r *sourceAppResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	// Generate update request from complete user-specified state
-	input := traceforce.SourceApp{
-		ID:         plan.ID.ValueString(),
-		DatalakeID: plan.DatalakeId.ValueString(),
-		Type:       traceforce.SourceAppType(plan.Type.ValueString()),
-		Name:       plan.Name.ValueString(),
+	name := plan.Name.ValueString()
+
+	input := traceforce.UpdateSourceAppRequest{
+		Name: &name,
 	}
 
-	// Update source app
-	sourceApp, err := r.client.UpdateSourceApp(input.ID, input)
+	sourceApp, err := r.client.UpdateSourceApp(plan.ID.ValueString(), input)
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating source app", err.Error())
 		return
@@ -237,7 +227,6 @@ func (r *sourceAppResource) Update(ctx context.Context, req resource.UpdateReque
 		UpdatedAt:  types.StringValue(sourceApp.UpdatedAt.Format(time.RFC3339)),
 	}
 
-	// Set state
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -245,7 +234,6 @@ func (r *sourceAppResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 }
 
-// Delete deletes the resource and removes the Terraform state on success.
 func (r *sourceAppResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state sourceAppResourceModel
 
@@ -255,7 +243,6 @@ func (r *sourceAppResource) Delete(ctx context.Context, req resource.DeleteReque
 		return
 	}
 
-	// Delete source app
 	err := r.client.DeleteSourceApp(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error deleting source app", err.Error())
