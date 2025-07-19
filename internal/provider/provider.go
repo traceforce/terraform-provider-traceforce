@@ -152,7 +152,9 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 
 func (p *traceforceProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewConnectionResource,
+		NewProjectResource,
+		NewDatalakeResource,
+		NewSourceAppResource,
 		NewPostConnectionResource,
 	}
 }
@@ -163,7 +165,9 @@ func (p *traceforceProvider) EphemeralResources(ctx context.Context) []func() ep
 
 func (p *traceforceProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
-		NewConnectionsDataSource,
+		NewProjectsDataSource,
+		NewDatalakesDataSource,
+		NewSourceAppsDataSource,
 	}
 }
 

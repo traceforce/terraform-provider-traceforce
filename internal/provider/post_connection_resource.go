@@ -18,9 +18,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &connectionResource{}
-	_ resource.ResourceWithConfigure   = &connectionResource{}
-	_ resource.ResourceWithImportState = &connectionResource{}
+	_ resource.Resource                = &postConnectionResource{}
+	_ resource.ResourceWithConfigure   = &postConnectionResource{}
+	_ resource.ResourceWithImportState = &postConnectionResource{}
 )
 
 // NewPostConnectionResource is a helper function to simplify the provider implementation.
@@ -63,16 +63,8 @@ func (r *postConnectionResource) Configure(ctx context.Context, req resource.Con
 func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"name": schema.StringAttribute{
-				Description: "Name of the connection. This value must be unique.",
-				Required:    true,
-			},
-			"environment_type": schema.StringAttribute{
-				Description: "Type of environment the connection is connected to. For example, AWS, Azure, GCP, etc.",
-				Required:    true,
-			},
-			"environment_native_id": schema.StringAttribute{
-				Description: "Native ID of the environment the connection is connected to. For example, an AWS account ID, an Azure subscription ID, a GCP project ID, etc.",
+			"project_id": schema.StringAttribute{
+				Description: "ID of the project to post-connect.",
 				Required:    true,
 			},
 			// The following attributes are computed and should never be reflected in changes.
@@ -111,7 +103,7 @@ func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequ
 
 // Create creates the resource and sets the initial Terraform state.
 func (r *postConnectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan connectionResourceModel
+	var plan projectResourceModel
 
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -119,33 +111,30 @@ func (r *postConnectionResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	// Get connection from API
-	input, err := r.client.GetConnectionByName(plan.Name.ValueString())
+	// Execute post-connection process using the hosting environment ID
+	connection, err := r.client.PostConnection(plan.HostingEnvironmentID.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Error reading a single connection by id", err.Error())
+		resp.Diagnostics.AddError("Error executing post-connection", err.Error())
 		return
 	}
 
-	input.EnvironmentType = plan.EnvironmentType.ValueString()
-	input.EnvironmentNativeId = plan.EnvironmentNativeId.ValueString()
-	input.Status = "connected"
-	input.UpdatedAt = time.Now()
-
-	// Update connection
-	connection, err := r.client.UpdateConnection(input.ID, *input)
-	if err != nil {
-		resp.Diagnostics.AddError("Error updating connection", err.Error())
-		return
+	cloudProviderStr := ""
+	if connection.CloudProvider != nil {
+		cloudProviderStr = string(*connection.CloudProvider)
 	}
 
-	plan = connectionResourceModel{
-		ID:                  types.StringValue(connection.ID),
-		CreatedAt:           types.StringValue(connection.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt:           types.StringValue(connection.UpdatedAt.Format(time.RFC3339)),
-		Name:                types.StringValue(connection.Name),
-		EnvironmentType:     types.StringValue(connection.EnvironmentType),
-		EnvironmentNativeId: types.StringValue(connection.EnvironmentNativeId),
-		Status:              types.StringValue(connection.Status),
+	plan = projectResourceModel{
+		HostingEnvironmentID:             plan.HostingEnvironmentID,
+		ID:                               types.StringValue(connection.ID),
+		CreatedAt:                        types.StringValue(connection.CreatedAt.Format(time.RFC3339)),
+		UpdatedAt:                        types.StringValue(connection.UpdatedAt.Format(time.RFC3339)),
+		Name:                             types.StringValue(connection.Name),
+		Type:                             types.StringValue(string(connection.Type)),
+		CloudProvider:                    types.StringValue(cloudProviderStr),
+		NativeId:                         types.StringValue(connection.NativeID),
+		Status:                           types.StringValue(string(connection.Status)),
+		ControlPlaneAwsAccountId:         types.StringValue(connection.ControlPlaneAwsAccountId),
+		ControlPlaneRoleName:             types.StringValue(connection.ControlPlaneRoleName),
 	}
 
 	// Set state
