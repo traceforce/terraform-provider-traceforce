@@ -18,9 +18,9 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource                = &connectionResource{}
-	_ resource.ResourceWithConfigure   = &connectionResource{}
-	_ resource.ResourceWithImportState = &connectionResource{}
+	_ resource.Resource                = &postConnectionResource{}
+	_ resource.ResourceWithConfigure   = &postConnectionResource{}
+	_ resource.ResourceWithImportState = &postConnectionResource{}
 )
 
 // NewPostConnectionResource is a helper function to simplify the provider implementation.
@@ -111,7 +111,7 @@ func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequ
 
 // Create creates the resource and sets the initial Terraform state.
 func (r *postConnectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan connectionResourceModel
+	var plan projectResourceModel
 
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -119,33 +119,36 @@ func (r *postConnectionResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	// Get connection from API
-	input, err := r.client.GetConnectionByName(plan.Name.ValueString())
+	// Get hosting environment by name to get the ID
+	env, err := r.client.GetHostingEnvironmentByName(plan.Name.ValueString())
 	if err != nil {
-		resp.Diagnostics.AddError("Error reading a single connection by id", err.Error())
+		resp.Diagnostics.AddError("Error reading hosting environment by name", err.Error())
 		return
 	}
 
-	input.EnvironmentType = plan.EnvironmentType.ValueString()
-	input.EnvironmentNativeId = plan.EnvironmentNativeId.ValueString()
-	input.Status = "connected"
-	input.UpdatedAt = time.Now()
-
-	// Update connection
-	connection, err := r.client.UpdateConnection(input.ID, *input)
+	// Execute post-connection process
+	connection, err := r.client.PostConnection(env.ID)
 	if err != nil {
-		resp.Diagnostics.AddError("Error updating connection", err.Error())
+		resp.Diagnostics.AddError("Error executing post-connection", err.Error())
 		return
 	}
 
-	plan = connectionResourceModel{
-		ID:                  types.StringValue(connection.ID),
-		CreatedAt:           types.StringValue(connection.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt:           types.StringValue(connection.UpdatedAt.Format(time.RFC3339)),
-		Name:                types.StringValue(connection.Name),
-		EnvironmentType:     types.StringValue(connection.EnvironmentType),
-		EnvironmentNativeId: types.StringValue(connection.EnvironmentNativeId),
-		Status:              types.StringValue(connection.Status),
+	cloudProviderStr := ""
+	if connection.CloudProvider != nil {
+		cloudProviderStr = string(*connection.CloudProvider)
+	}
+
+	plan = projectResourceModel{
+		ID:                               types.StringValue(connection.ID),
+		CreatedAt:                        types.StringValue(connection.CreatedAt.Format(time.RFC3339)),
+		UpdatedAt:                        types.StringValue(connection.UpdatedAt.Format(time.RFC3339)),
+		Name:                             types.StringValue(connection.Name),
+		Type:                             types.StringValue(string(connection.Type)),
+		CloudProvider:                    types.StringValue(cloudProviderStr),
+		NativeId:                         types.StringValue(connection.NativeID),
+		Status:                           types.StringValue(string(connection.Status)),
+		ControlPlaneAwsAccountId:         types.StringValue(connection.ControlPlaneAwsAccountId),
+		ControlPlaneRoleName:             types.StringValue(connection.ControlPlaneRoleName),
 	}
 
 	// Set state
