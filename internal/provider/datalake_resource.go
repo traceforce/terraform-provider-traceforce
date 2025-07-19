@@ -78,11 +78,13 @@ func (r *datalakeResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			"project_id": schema.StringAttribute{
 				Description: "ID of the project this datalake belongs to.",
 				Required:    true,
+				ForceNew:    true,
 			},
 			"type": schema.StringAttribute{
 				Description: fmt.Sprintf("Type of datalake. Currently supported: %s.", 
 					traceforce.DatalakeTypeBigQuery),
 				Required:    true,
+				ForceNew:    true,
 			},
 			"name": schema.StringAttribute{
 				Description: "Name of the datalake. This value must be unique within a project.",
@@ -124,7 +126,6 @@ func (r *datalakeResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 	}
 }
 
-// Create creates the resource and sets the initial Terraform state.
 func (r *datalakeResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan datalakeResourceModel
 
@@ -134,15 +135,12 @@ func (r *datalakeResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	// Generate API request body from plan
-	input := traceforce.Datalake{
+	input := traceforce.CreateDatalakeRequest{
 		HostingEnvironmentID: plan.ProjectId.ValueString(),
 		Type:                 traceforce.DatalakeType(plan.Type.ValueString()),
 		Name:                 plan.Name.ValueString(),
-		Status:               traceforce.DatalakeStatusPending,
 	}
 
-	// Create datalake
 	datalake, err := r.client.CreateDatalake(input)
 	if err != nil {
 		resp.Diagnostics.AddError("Error creating datalake", err.Error())
@@ -159,7 +157,6 @@ func (r *datalakeResource) Create(ctx context.Context, req resource.CreateReques
 		UpdatedAt: types.StringValue(datalake.UpdatedAt.Format(time.RFC3339)),
 	}
 
-	// Set state
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -167,7 +164,6 @@ func (r *datalakeResource) Create(ctx context.Context, req resource.CreateReques
 	}
 }
 
-// Read refreshes the Terraform state with the latest data.
 func (r *datalakeResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var state datalakeResourceModel
 
@@ -177,7 +173,6 @@ func (r *datalakeResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
-	// Get datalake by ID
 	datalake, err := r.client.GetDatalake(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading datalake", err.Error())
@@ -194,7 +189,6 @@ func (r *datalakeResource) Read(ctx context.Context, req resource.ReadRequest, r
 		UpdatedAt: types.StringValue(datalake.UpdatedAt.Format(time.RFC3339)),
 	}
 
-	// Set state
 	diags = resp.State.Set(ctx, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -202,7 +196,6 @@ func (r *datalakeResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 }
 
-// Update updates the resource and sets the updated Terraform state on success.
 func (r *datalakeResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var plan datalakeResourceModel
 
@@ -212,16 +205,13 @@ func (r *datalakeResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	// Generate update request from complete user-specified state
-	input := traceforce.Datalake{
-		ID:                   plan.ID.ValueString(),
-		HostingEnvironmentID: plan.ProjectId.ValueString(),
-		Type:                 traceforce.DatalakeType(plan.Type.ValueString()),
-		Name:                 plan.Name.ValueString(),
+	name := plan.Name.ValueString()
+
+	input := traceforce.UpdateDatalakeRequest{
+		Name: &name,
 	}
 
-	// Update datalake
-	datalake, err := r.client.UpdateDatalake(input.ID, input)
+	datalake, err := r.client.UpdateDatalake(plan.ID.ValueString(), input)
 	if err != nil {
 		resp.Diagnostics.AddError("Error updating datalake", err.Error())
 		return
@@ -237,7 +227,6 @@ func (r *datalakeResource) Update(ctx context.Context, req resource.UpdateReques
 		UpdatedAt: types.StringValue(datalake.UpdatedAt.Format(time.RFC3339)),
 	}
 
-	// Set state
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -245,7 +234,6 @@ func (r *datalakeResource) Update(ctx context.Context, req resource.UpdateReques
 	}
 }
 
-// Delete deletes the resource and removes the Terraform state on success.
 func (r *datalakeResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var state datalakeResourceModel
 
@@ -255,7 +243,6 @@ func (r *datalakeResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	// Delete datalake
 	err := r.client.DeleteDatalake(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error deleting datalake", err.Error())

@@ -137,18 +137,13 @@ func (d *projectsDataSource) Read(ctx context.Context, req datasource.ReadReques
 
 	var state projectsDataSourceModel
 	for _, env := range hostingEnvironments {
-		cloudProvider := ""
-		if env.CloudProvider != nil {
-			cloudProvider = string(*env.CloudProvider)
-		}
-		
 		state.Projects = append(state.Projects, projectsModel{
 			ID:                       types.StringValue(env.ID),
 			CreatedAt:                types.StringValue(env.CreatedAt.Format(time.RFC3339)),
 			UpdatedAt:                types.StringValue(env.UpdatedAt.Format(time.RFC3339)),
 			Name:                     types.StringValue(env.Name),
 			Type:                     types.StringValue(string(env.Type)),
-			CloudProvider:            types.StringValue(cloudProvider),
+			CloudProvider:            types.StringValue(string(env.CloudProvider)),
 			NativeId:                 types.StringValue(env.NativeID),
 			Status:                   types.StringValue(string(env.Status)),
 			ControlPlaneAwsAccountId: types.StringValue(env.ControlPlaneAwsAccountId),
