@@ -5,7 +5,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -33,6 +32,15 @@ type postConnectionResource struct {
 	client *traceforce.Client
 }
 
+// postConnectionResourceModel maps post_connection schema data.
+type postConnectionResourceModel struct {
+	ProjectId types.String `tfsdk:"project_id"`
+	ID        types.String `tfsdk:"id"`
+	Status    types.String `tfsdk:"status"`
+	CreatedAt types.String `tfsdk:"created_at"`
+	UpdatedAt types.String `tfsdk:"updated_at"`
+}
+
 // Metadata returns the resource type name.
 func (r *postConnectionResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_post_connection"
@@ -49,8 +57,8 @@ func (r *postConnectionResource) Configure(ctx context.Context, req resource.Con
 
 	if !ok {
 		resp.Diagnostics.AddError(
-			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *hashicups.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			"Unexpected Provider Configuration",
+			"An error occurred while configuring the provider. Please contact support if this persists.",
 		)
 
 		return
@@ -63,8 +71,8 @@ func (r *postConnectionResource) Configure(ctx context.Context, req resource.Con
 func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"hosting_environment_id": schema.StringAttribute{
-				Description: "ID of the hosting environment to post-connect.",
+			"project_id": schema.StringAttribute{
+				Description: "ID of the project to post-connect.",
 				Required:    true,
 			},
 			// The following attributes are computed and should never be reflected in changes.
@@ -103,7 +111,7 @@ func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequ
 
 // Create creates the resource and sets the initial Terraform state.
 func (r *postConnectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var plan projectResourceModel
+	var plan postConnectionResourceModel
 
 	diags := req.Plan.Get(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
@@ -111,30 +119,19 @@ func (r *postConnectionResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	// Execute post-connection process using the hosting environment ID
-	connection, err := r.client.PostConnection(plan.HostingEnvironmentID.ValueString())
+	// Execute post-connection process using the project ID
+	connection, err := r.client.PostConnection(plan.ProjectId.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error executing post-connection", err.Error())
 		return
 	}
 
-	cloudProviderStr := ""
-	if connection.CloudProvider != nil {
-		cloudProviderStr = string(*connection.CloudProvider)
-	}
-
-	plan = projectResourceModel{
-		HostingEnvironmentID:             plan.HostingEnvironmentID,
-		ID:                               types.StringValue(connection.ID),
-		CreatedAt:                        types.StringValue(connection.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt:                        types.StringValue(connection.UpdatedAt.Format(time.RFC3339)),
-		Name:                             types.StringValue(connection.Name),
-		Type:                             types.StringValue(string(connection.Type)),
-		CloudProvider:                    types.StringValue(cloudProviderStr),
-		NativeId:                         types.StringValue(connection.NativeID),
-		Status:                           types.StringValue(string(connection.Status)),
-		ControlPlaneAwsAccountId:         types.StringValue(connection.ControlPlaneAwsAccountId),
-		ControlPlaneRoleName:             types.StringValue(connection.ControlPlaneRoleName),
+	plan = postConnectionResourceModel{
+		ProjectId: plan.ProjectId,
+		ID:        types.StringValue(connection.ID),
+		Status:    types.StringValue(string(connection.Status)),
+		CreatedAt: types.StringValue(connection.CreatedAt.Format(time.RFC3339)),
+		UpdatedAt: types.StringValue(connection.UpdatedAt.Format(time.RFC3339)),
 	}
 
 	// Set state

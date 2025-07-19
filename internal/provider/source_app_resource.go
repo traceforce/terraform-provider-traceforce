@@ -36,13 +36,13 @@ type sourceAppResource struct {
 
 // sourceAppResourceModel maps source_apps schema data.
 type sourceAppResourceModel struct {
-	ID               types.String `tfsdk:"id"`
-	DatalakeId       types.String `tfsdk:"datalake_id"`
-	Type             types.String `tfsdk:"type"`
-	Name             types.String `tfsdk:"name"`
-	Status           types.String `tfsdk:"status"`
-	CreatedAt        types.String `tfsdk:"created_at"`
-	UpdatedAt        types.String `tfsdk:"updated_at"`
+	ID         types.String `tfsdk:"id"`
+	DatalakeId types.String `tfsdk:"datalake_id"`
+	Type       types.String `tfsdk:"type"`
+	Name       types.String `tfsdk:"name"`
+	Status     types.String `tfsdk:"status"`
+	CreatedAt  types.String `tfsdk:"created_at"`
+	UpdatedAt  types.String `tfsdk:"updated_at"`
 }
 
 // Metadata returns the resource type name.
@@ -61,8 +61,8 @@ func (r *sourceAppResource) Configure(ctx context.Context, req resource.Configur
 
 	if !ok {
 		resp.Diagnostics.AddError(
-			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *hashicups.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			"Unexpected Provider Configuration",
+			"An error occurred while configuring the provider. Please contact support if this persists.",
 		)
 
 		return
@@ -78,13 +78,17 @@ func (r *sourceAppResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"datalake_id": schema.StringAttribute{
 				Description: "ID of the datalake this source app belongs to.",
 				Required:    true,
-				ForceNew:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"type": schema.StringAttribute{
-				Description: fmt.Sprintf("Type of source app. Currently supported: %s.", 
+				Description: fmt.Sprintf("Type of source app. Currently supported: %s.",
 					traceforce.SourceAppTypeSalesforce),
-				Required:    true,
-				ForceNew:    true,
+				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"name": schema.StringAttribute{
 				Description: "Name of the source app. This value must be unique within a datalake.",
@@ -92,11 +96,11 @@ func (r *sourceAppResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 			// The following attributes are computed and should never be reflected in changes.
 			"status": schema.StringAttribute{
-				Description: fmt.Sprintf("Status of the source app. Valid values: %s, %s, %s.", 
+				Description: fmt.Sprintf("Status of the source app. Valid values: %s, %s, %s.",
 					traceforce.SourceAppStatusPending,
 					traceforce.SourceAppStatusDisconnected,
 					traceforce.SourceAppStatusConnected),
-				Computed:    true,
+				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},

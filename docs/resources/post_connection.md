@@ -13,12 +13,10 @@ description: |-
 ## Example Usage
 
 ```terraform
-# Manage example order.
+# Establish post-connection setup for a project
 resource "traceforce_post_connection" "example" {
-  name                  = "example"
-  environment_type      = "AWS"
-  environment_native_id = "9876543210"
-  depends_on            = [traceforce_connection.example-aws]
+  project_id = traceforce_project.example.id
+  depends_on = [traceforce_project.example]
 }
 ```
 
@@ -27,9 +25,7 @@ resource "traceforce_post_connection" "example" {
 
 ### Required
 
-- `environment_native_id` (String) Native ID of the environment the connection is connected to. For example, an AWS account ID, an Azure subscription ID, a GCP project ID, etc.
-- `environment_type` (String) Type of environment the connection is connected to. For example, AWS, Azure, GCP, etc.
-- `name` (String) Name of the connection. This value must be unique.
+- `project_id` (String) ID of the project to post-connect.
 
 ### Optional
 

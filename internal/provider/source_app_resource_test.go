@@ -1,4 +1,6 @@
 // Copyright (c) Traceforce, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
@@ -15,8 +17,9 @@ func TestAccSourceAppResource(t *testing.T) {
 	projectName := "z-project-" + uuid.New().String()
 	datalakeName := "z-datalake-" + uuid.New().String()
 	sourceAppName := "z-sourceapp-" + uuid.New().String()
-	
+
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing
@@ -79,13 +82,14 @@ resource "traceforce_datalake" "test" {
 
 resource "traceforce_source_app" "test" {
   datalake_id = traceforce_datalake.test.id
-  type        = "HubSpot"
-  name        = "` + sourceAppName + `"
+  type        = "Salesforce"
+  name        = "` + sourceAppName + `-updated"
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify updated attributes
-					resource.TestCheckResourceAttr("traceforce_source_app.test", "type", "HubSpot"),
+					// Verify name was updated
+					resource.TestCheckResourceAttr("traceforce_source_app.test", "name", sourceAppName+"-updated"),
+					resource.TestCheckResourceAttr("traceforce_source_app.test", "type", "Salesforce"),
 				),
 			},
 			// Delete testing automatically occurs in TestCase

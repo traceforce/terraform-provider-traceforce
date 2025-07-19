@@ -1,4 +1,6 @@
 // Copyright (c) Traceforce, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
@@ -9,11 +11,12 @@ import (
 )
 
 func TestAccProjectResource(t *testing.T) {
-	// Use a resource name that starts with Z to ensure it is sorted last``
+	// Use a resource name that starts with Z to ensure it is sorted last
 	// Different Terraform versions may be triggered in parallel so
 	// we need to ensure the resource name is unique.
 	resourceName := "z-example-" + uuid.New().String()
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing

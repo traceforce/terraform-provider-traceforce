@@ -1,12 +1,16 @@
 terraform {
   required_providers {
     traceforce = {
-      source = "hashicorp.com/edu/traceforce"
+      source = "registry.terraform.io/traceforce/traceforce"
     }
   }
 }
 
-provider "traceforce" {}
+provider "traceforce" {
+  # Configure with environment variables:
+  # TRACEFORCE_API_KEY
+  # TRACEFORCE_ENDPOINT (optional)
+}
 
-data "traceforce_connections" "example" {}
+data "traceforce_projects" "example" {}
 

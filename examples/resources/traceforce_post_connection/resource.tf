@@ -1,7 +1,5 @@
-# Manage example order.
+# Establish post-connection setup for a project
 resource "traceforce_post_connection" "example" {
-  name                  = "example"
-  environment_type      = "AWS"
-  environment_native_id = "9876543210"
-  depends_on            = [traceforce_connection.example-aws]
+  project_id = traceforce_project.example.id
+  depends_on = [traceforce_project.example]
 }

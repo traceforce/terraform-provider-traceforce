@@ -30,8 +30,8 @@ type sourceAppsDataSource struct {
 
 // sourceAppsDataSourceModel maps the data source schema data.
 type sourceAppsDataSourceModel struct {
-	DatalakeId types.String          `tfsdk:"datalake_id"`
-	SourceApps []sourceAppsModel     `tfsdk:"source_apps"`
+	DatalakeId types.String      `tfsdk:"datalake_id"`
+	SourceApps []sourceAppsModel `tfsdk:"source_apps"`
 }
 
 // sourceAppsModel maps source apps schema data.

@@ -30,8 +30,8 @@ type datalakesDataSource struct {
 
 // datalakesDataSourceModel maps the data source schema data.
 type datalakesDataSourceModel struct {
-	ProjectId types.String        `tfsdk:"project_id"`
-	Datalakes []datalakesModel    `tfsdk:"datalakes"`
+	ProjectId types.String     `tfsdk:"project_id"`
+	Datalakes []datalakesModel `tfsdk:"datalakes"`
 }
 
 // datalakesModel maps datalakes schema data.

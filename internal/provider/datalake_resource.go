@@ -36,13 +36,13 @@ type datalakeResource struct {
 
 // datalakeResourceModel maps datalakes schema data.
 type datalakeResourceModel struct {
-	ID               types.String `tfsdk:"id"`
-	ProjectId        types.String `tfsdk:"project_id"`
-	Type             types.String `tfsdk:"type"`
-	Name             types.String `tfsdk:"name"`
-	Status           types.String `tfsdk:"status"`
-	CreatedAt        types.String `tfsdk:"created_at"`
-	UpdatedAt        types.String `tfsdk:"updated_at"`
+	ID        types.String `tfsdk:"id"`
+	ProjectId types.String `tfsdk:"project_id"`
+	Type      types.String `tfsdk:"type"`
+	Name      types.String `tfsdk:"name"`
+	Status    types.String `tfsdk:"status"`
+	CreatedAt types.String `tfsdk:"created_at"`
+	UpdatedAt types.String `tfsdk:"updated_at"`
 }
 
 // Metadata returns the resource type name.
@@ -61,8 +61,8 @@ func (r *datalakeResource) Configure(ctx context.Context, req resource.Configure
 
 	if !ok {
 		resp.Diagnostics.AddError(
-			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *hashicups.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			"Unexpected Provider Configuration",
+			"An error occurred while configuring the provider. Please contact support if this persists.",
 		)
 
 		return
@@ -78,13 +78,17 @@ func (r *datalakeResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			"project_id": schema.StringAttribute{
 				Description: "ID of the project this datalake belongs to.",
 				Required:    true,
-				ForceNew:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"type": schema.StringAttribute{
-				Description: fmt.Sprintf("Type of datalake. Currently supported: %s.", 
+				Description: fmt.Sprintf("Type of datalake. Currently supported: %s.",
 					traceforce.DatalakeTypeBigQuery),
-				Required:    true,
-				ForceNew:    true,
+				Required: true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"name": schema.StringAttribute{
 				Description: "Name of the datalake. This value must be unique within a project.",
@@ -92,11 +96,11 @@ func (r *datalakeResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			},
 			// The following attributes are computed and should never be reflected in changes.
 			"status": schema.StringAttribute{
-				Description: fmt.Sprintf("Status of the datalake. Valid values: %s, %s, %s.", 
+				Description: fmt.Sprintf("Status of the datalake. Valid values: %s, %s, %s.",
 					traceforce.DatalakeStatusPending,
 					traceforce.DatalakeStatusWaitingForUserInput,
 					traceforce.DatalakeStatusReady),
-				Computed:    true,
+				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},

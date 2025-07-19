@@ -1,4 +1,6 @@
 // Copyright (c) Traceforce, Inc.
+// SPDX-License-Identifier: MPL-2.0
+
 package provider
 
 import (
@@ -14,8 +16,9 @@ func TestAccDatalakeResource(t *testing.T) {
 	// we need to ensure the resource name is unique.
 	projectName := "z-project-" + uuid.New().String()
 	datalakeName := "z-datalake-" + uuid.New().String()
-	
+
 	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			// Create and Read testing
@@ -66,13 +69,14 @@ resource "traceforce_project" "test" {
 
 resource "traceforce_datalake" "test" {
   project_id = traceforce_project.test.id
-  type       = "Snowflake"
-  name       = "` + datalakeName + `"
+  type       = "BigQuery"
+  name       = "` + datalakeName + `-updated"
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
-					// Verify updated attributes
-					resource.TestCheckResourceAttr("traceforce_datalake.test", "type", "Snowflake"),
+					// Verify name was updated
+					resource.TestCheckResourceAttr("traceforce_datalake.test", "name", datalakeName+"-updated"),
+					resource.TestCheckResourceAttr("traceforce_datalake.test", "type", "BigQuery"),
 				),
 			},
 			// Delete testing automatically occurs in TestCase
