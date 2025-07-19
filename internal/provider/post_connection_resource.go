@@ -63,8 +63,8 @@ func (r *postConnectionResource) Configure(ctx context.Context, req resource.Con
 func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"hosting_environment_id": schema.StringAttribute{
-				Description: "ID of the hosting environment to post-connect.",
+			"project_id": schema.StringAttribute{
+				Description: "ID of the project to post-connect.",
 				Required:    true,
 			},
 			// The following attributes are computed and should never be reflected in changes.

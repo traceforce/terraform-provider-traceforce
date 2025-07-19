@@ -24,27 +24,35 @@ First get the API key from https://www.traceforce.co and set `TRACEFORCE_API_KEY
 terraform {
   required_providers {
     traceforce = {
-      source = "registry.terraform.io/hashicorp/traceforce"
+      source = "registry.terraform.io/traceforce/traceforce"
     }
   }
 }
 
 provider "traceforce" {}
 
-resource "traceforce_connection" "example" {
-  name                  = "example"
-  environment_type      = "AWS"
-  environment_native_id = "9876543210"
-  status                = "disconnected"
+# Create a project
+resource "traceforce_project" "example" {
+  name           = "example-project"
+  type           = "Customer Managed"
+  cloud_provider = "AWS"
+  native_id      = "123456789012"
 }
 
-data "traceforce_connections" "example" {}
-
-output "connections" {
-  value = data.traceforce_connections.example
+# Create a datalake in the project
+resource "traceforce_datalake" "analytics" {
+  name       = "analytics"
+  project_id = traceforce_project.example.id
+  type       = "BigQuery"
 }
 
-output "new_connection" {
-  value = traceforce_connection.example
+data "traceforce_projects" "all" {}
+
+output "projects" {
+  value = data.traceforce_projects.all
+}
+
+output "new_project" {
+  value = traceforce_project.example
 }
 ```

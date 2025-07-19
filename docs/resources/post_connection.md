@@ -8,17 +8,24 @@ description: |-
 
 # traceforce_post_connection (Resource)
 
-
+Manages a Traceforce post-connection setup. This resource establishes the final connection configuration for a project after initial setup.
 
 ## Example Usage
 
 ```terraform
-# Manage example order.
+# Establish post-connection setup for a project
 resource "traceforce_post_connection" "example" {
-  name                  = "example"
-  environment_type      = "AWS"
-  environment_native_id = "9876543210"
-  depends_on            = [traceforce_connection.example-aws]
+  project_id = traceforce_project.production.id
+  depends_on = [traceforce_project.production]
+}
+
+# Post-connection with explicit dependency chain
+resource "traceforce_post_connection" "complete_setup" {
+  project_id = traceforce_project.analytics.id
+  depends_on = [
+    traceforce_project.analytics,
+    traceforce_datalake.main
+  ]
 }
 ```
 
@@ -27,16 +34,22 @@ resource "traceforce_post_connection" "example" {
 
 ### Required
 
-- `environment_native_id` (String) Native ID of the environment the connection is connected to. For example, an AWS account ID, an Azure subscription ID, a GCP project ID, etc.
-- `environment_type` (String) Type of environment the connection is connected to. For example, AWS, Azure, GCP, etc.
-- `name` (String) Name of the connection. This value must be unique.
+- `project_id` (String) ID of the project to post-connect.
 
 ### Optional
 
-- `created_at` (String) Date and time the connection was created
-- `id` (String) System generated ID of the connection
-- `updated_at` (String) Date and time the connection was last updated
+- `id` (String) System generated unique identifier for the connection.
+- `created_at` (String) Date and time the connection was created. Read-only.
+- `updated_at` (String) Date and time the connection was last updated. Read-only.
 
 ### Read-Only
 
 - `status` (String) Status of the connection. For example, connected, disconnected, etc.
+
+## Import
+
+Post-connection resources can be imported using their ID:
+
+```shell
+terraform import traceforce_post_connection.example 550e8400-e29b-41d4-a716-446655440000
+```
