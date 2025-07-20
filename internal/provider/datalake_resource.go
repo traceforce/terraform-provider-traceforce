@@ -36,13 +36,15 @@ type datalakeResource struct {
 
 // datalakeResourceModel maps datalakes schema data.
 type datalakeResourceModel struct {
-	ID        types.String `tfsdk:"id"`
-	ProjectId types.String `tfsdk:"project_id"`
-	Type      types.String `tfsdk:"type"`
-	Name      types.String `tfsdk:"name"`
-	Status    types.String `tfsdk:"status"`
-	CreatedAt types.String `tfsdk:"created_at"`
-	UpdatedAt types.String `tfsdk:"updated_at"`
+	ID                  types.String `tfsdk:"id"`
+	ProjectId           types.String `tfsdk:"project_id"`
+	Type                types.String `tfsdk:"type"`
+	Name                types.String `tfsdk:"name"`
+	Status              types.String `tfsdk:"status"`
+	EnvironmentNativeID types.String `tfsdk:"environment_native_id"`
+	Region              types.String `tfsdk:"region"`
+	CreatedAt           types.String `tfsdk:"created_at"`
+	UpdatedAt           types.String `tfsdk:"updated_at"`
 }
 
 // Metadata returns the resource type name.
@@ -94,6 +96,20 @@ func (r *datalakeResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 				Description: "Name of the datalake. This value must be unique within a project.",
 				Required:    true,
 			},
+			"environment_native_id": schema.StringAttribute{
+				Description: "Native ID of the environment where the datalake is deployed (e.g., GCP project ID).",
+				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
+			"region": schema.StringAttribute{
+				Description: "Datalake region.",
+				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
+			},
 			// The following attributes are computed and should never be reflected in changes.
 			"status": schema.StringAttribute{
 				Description: fmt.Sprintf("Status of the datalake. Valid values: %s, %s, %s.",
@@ -143,6 +159,8 @@ func (r *datalakeResource) Create(ctx context.Context, req resource.CreateReques
 		HostingEnvironmentID: plan.ProjectId.ValueString(),
 		Type:                 traceforce.DatalakeType(plan.Type.ValueString()),
 		Name:                 plan.Name.ValueString(),
+		EnvironmentNativeID:  plan.EnvironmentNativeID.ValueString(),
+		Region:               plan.Region.ValueString(),
 	}
 
 	datalake, err := r.client.CreateDatalake(input)
@@ -152,13 +170,15 @@ func (r *datalakeResource) Create(ctx context.Context, req resource.CreateReques
 	}
 
 	plan = datalakeResourceModel{
-		ID:        types.StringValue(datalake.ID),
-		ProjectId: types.StringValue(datalake.HostingEnvironmentID),
-		Type:      types.StringValue(string(datalake.Type)),
-		Name:      types.StringValue(datalake.Name),
-		Status:    types.StringValue(string(datalake.Status)),
-		CreatedAt: types.StringValue(datalake.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt: types.StringValue(datalake.UpdatedAt.Format(time.RFC3339)),
+		ID:                  types.StringValue(datalake.ID),
+		ProjectId:           types.StringValue(datalake.HostingEnvironmentID),
+		Type:                types.StringValue(string(datalake.Type)),
+		Name:                types.StringValue(datalake.Name),
+		Status:              types.StringValue(string(datalake.Status)),
+		EnvironmentNativeID: types.StringValue(datalake.EnvironmentNativeID),
+		Region:              types.StringValue(datalake.Region),
+		CreatedAt:           types.StringValue(datalake.CreatedAt.Format(time.RFC3339)),
+		UpdatedAt:           types.StringValue(datalake.UpdatedAt.Format(time.RFC3339)),
 	}
 
 	diags = resp.State.Set(ctx, &plan)
@@ -184,13 +204,15 @@ func (r *datalakeResource) Read(ctx context.Context, req resource.ReadRequest, r
 	}
 
 	state = datalakeResourceModel{
-		ID:        types.StringValue(datalake.ID),
-		ProjectId: types.StringValue(datalake.HostingEnvironmentID),
-		Type:      types.StringValue(string(datalake.Type)),
-		Name:      types.StringValue(datalake.Name),
-		Status:    types.StringValue(string(datalake.Status)),
-		CreatedAt: types.StringValue(datalake.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt: types.StringValue(datalake.UpdatedAt.Format(time.RFC3339)),
+		ID:                  types.StringValue(datalake.ID),
+		ProjectId:           types.StringValue(datalake.HostingEnvironmentID),
+		Type:                types.StringValue(string(datalake.Type)),
+		Name:                types.StringValue(datalake.Name),
+		Status:              types.StringValue(string(datalake.Status)),
+		EnvironmentNativeID: types.StringValue(datalake.EnvironmentNativeID),
+		Region:              types.StringValue(datalake.Region),
+		CreatedAt:           types.StringValue(datalake.CreatedAt.Format(time.RFC3339)),
+		UpdatedAt:           types.StringValue(datalake.UpdatedAt.Format(time.RFC3339)),
 	}
 
 	diags = resp.State.Set(ctx, &state)
@@ -222,13 +244,15 @@ func (r *datalakeResource) Update(ctx context.Context, req resource.UpdateReques
 	}
 
 	plan = datalakeResourceModel{
-		ID:        types.StringValue(datalake.ID),
-		ProjectId: types.StringValue(datalake.HostingEnvironmentID),
-		Type:      types.StringValue(string(datalake.Type)),
-		Name:      types.StringValue(datalake.Name),
-		Status:    types.StringValue(string(datalake.Status)),
-		CreatedAt: types.StringValue(datalake.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt: types.StringValue(datalake.UpdatedAt.Format(time.RFC3339)),
+		ID:                  types.StringValue(datalake.ID),
+		ProjectId:           types.StringValue(datalake.HostingEnvironmentID),
+		Type:                types.StringValue(string(datalake.Type)),
+		Name:                types.StringValue(datalake.Name),
+		Status:              types.StringValue(string(datalake.Status)),
+		EnvironmentNativeID: types.StringValue(datalake.EnvironmentNativeID),
+		Region:              types.StringValue(datalake.Region),
+		CreatedAt:           types.StringValue(datalake.CreatedAt.Format(time.RFC3339)),
+		UpdatedAt:           types.StringValue(datalake.UpdatedAt.Format(time.RFC3339)),
 	}
 
 	diags = resp.State.Set(ctx, &plan)

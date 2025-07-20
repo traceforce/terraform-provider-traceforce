@@ -51,8 +51,6 @@ resource "traceforce_datalake" "from_existing_project" {
 Read-Only:
 
 - `cloud_provider` (String) Cloud provider for the project. Valid values: AWS, GCP, Azure.
-- `control_plane_aws_account_id` (String) AWS account ID for the control plane
-- `control_plane_role_name` (String) AWS IAM role name for the control plane
 - `created_at` (String) Date and time the project was created
 - `id` (String) System generated ID of the project
 - `name` (String) Name of the project. This must be unique.

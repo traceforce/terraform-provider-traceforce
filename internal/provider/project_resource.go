@@ -36,16 +36,14 @@ type projectResource struct {
 
 // projectResourceModel maps projects schema data.
 type projectResourceModel struct {
-	ID                       types.String `tfsdk:"id"`
-	Name                     types.String `tfsdk:"name"`
-	Type                     types.String `tfsdk:"type"`
-	CloudProvider            types.String `tfsdk:"cloud_provider"`
-	NativeId                 types.String `tfsdk:"native_id"`
-	Status                   types.String `tfsdk:"status"`
-	ControlPlaneAwsAccountId types.String `tfsdk:"control_plane_aws_account_id"`
-	ControlPlaneRoleName     types.String `tfsdk:"control_plane_role_name"`
-	CreatedAt                types.String `tfsdk:"created_at"`
-	UpdatedAt                types.String `tfsdk:"updated_at"`
+	ID            types.String `tfsdk:"id"`
+	Name          types.String `tfsdk:"name"`
+	Type          types.String `tfsdk:"type"`
+	CloudProvider types.String `tfsdk:"cloud_provider"`
+	NativeId      types.String `tfsdk:"native_id"`
+	Status        types.String `tfsdk:"status"`
+	CreatedAt     types.String `tfsdk:"created_at"`
+	UpdatedAt     types.String `tfsdk:"updated_at"`
 }
 
 // Metadata returns the resource type name.
@@ -126,20 +124,6 @@ func (r *projectResource) Schema(_ context.Context, _ resource.SchemaRequest, re
 					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
-			"control_plane_aws_account_id": schema.StringAttribute{
-				Description: "AWS account ID for the control plane",
-				Computed:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
-			"control_plane_role_name": schema.StringAttribute{
-				Description: "AWS IAM role name for the control plane",
-				Computed:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
-			},
 			"created_at": schema.StringAttribute{
 				Description: "Date and time the project was created",
 				Computed:    true,
@@ -181,16 +165,14 @@ func (r *projectResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
 	plan = projectResourceModel{
-		ID:                       types.StringValue(project.ID),
-		Name:                     types.StringValue(project.Name),
-		Type:                     types.StringValue(string(project.Type)),
-		CloudProvider:            types.StringValue(string(project.CloudProvider)),
-		NativeId:                 types.StringValue(project.NativeID),
-		Status:                   types.StringValue(string(project.Status)),
-		ControlPlaneAwsAccountId: types.StringValue(project.ControlPlaneAwsAccountId),
-		ControlPlaneRoleName:     types.StringValue(project.ControlPlaneRoleName),
-		CreatedAt:                types.StringValue(project.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt:                types.StringValue(project.UpdatedAt.Format(time.RFC3339)),
+		ID:            types.StringValue(project.ID),
+		Name:          types.StringValue(project.Name),
+		Type:          types.StringValue(string(project.Type)),
+		CloudProvider: types.StringValue(string(project.CloudProvider)),
+		NativeId:      types.StringValue(project.NativeID),
+		Status:        types.StringValue(string(project.Status)),
+		CreatedAt:     types.StringValue(project.CreatedAt.Format(time.RFC3339)),
+		UpdatedAt:     types.StringValue(project.UpdatedAt.Format(time.RFC3339)),
 	}
 
 	diags = resp.State.Set(ctx, &plan)
@@ -217,16 +199,14 @@ func (r *projectResource) Read(ctx context.Context, req resource.ReadRequest, re
 	}
 
 	state = projectResourceModel{
-		ID:                       types.StringValue(project.ID),
-		Name:                     types.StringValue(project.Name),
-		Type:                     types.StringValue(string(project.Type)),
-		CloudProvider:            types.StringValue(string(project.CloudProvider)),
-		NativeId:                 types.StringValue(project.NativeID),
-		Status:                   types.StringValue(string(project.Status)),
-		ControlPlaneAwsAccountId: types.StringValue(project.ControlPlaneAwsAccountId),
-		ControlPlaneRoleName:     types.StringValue(project.ControlPlaneRoleName),
-		CreatedAt:                types.StringValue(project.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt:                types.StringValue(project.UpdatedAt.Format(time.RFC3339)),
+		ID:            types.StringValue(project.ID),
+		Name:          types.StringValue(project.Name),
+		Type:          types.StringValue(string(project.Type)),
+		CloudProvider: types.StringValue(string(project.CloudProvider)),
+		NativeId:      types.StringValue(project.NativeID),
+		Status:        types.StringValue(string(project.Status)),
+		CreatedAt:     types.StringValue(project.CreatedAt.Format(time.RFC3339)),
+		UpdatedAt:     types.StringValue(project.UpdatedAt.Format(time.RFC3339)),
 	}
 
 	diags = resp.State.Set(ctx, &state)
@@ -258,16 +238,14 @@ func (r *projectResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
 	plan = projectResourceModel{
-		ID:                       types.StringValue(project.ID),
-		Name:                     types.StringValue(project.Name),
-		Type:                     types.StringValue(string(project.Type)),
-		CloudProvider:            types.StringValue(string(project.CloudProvider)),
-		NativeId:                 types.StringValue(project.NativeID),
-		Status:                   types.StringValue(string(project.Status)),
-		ControlPlaneAwsAccountId: types.StringValue(project.ControlPlaneAwsAccountId),
-		ControlPlaneRoleName:     types.StringValue(project.ControlPlaneRoleName),
-		CreatedAt:                types.StringValue(project.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt:                types.StringValue(project.UpdatedAt.Format(time.RFC3339)),
+		ID:            types.StringValue(project.ID),
+		Name:          types.StringValue(project.Name),
+		Type:          types.StringValue(string(project.Type)),
+		CloudProvider: types.StringValue(string(project.CloudProvider)),
+		NativeId:      types.StringValue(project.NativeID),
+		Status:        types.StringValue(string(project.Status)),
+		CreatedAt:     types.StringValue(project.CreatedAt.Format(time.RFC3339)),
+		UpdatedAt:     types.StringValue(project.UpdatedAt.Format(time.RFC3339)),
 	}
 
 	diags = resp.State.Set(ctx, &plan)
