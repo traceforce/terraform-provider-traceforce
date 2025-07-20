@@ -35,16 +35,14 @@ type projectsDataSourceModel struct {
 
 // projectsModel maps projects schema data.
 type projectsModel struct {
-	ID                       types.String `tfsdk:"id"`
-	CreatedAt                types.String `tfsdk:"created_at"`
-	UpdatedAt                types.String `tfsdk:"updated_at"`
-	Name                     types.String `tfsdk:"name"`
-	Type                     types.String `tfsdk:"type"`
-	CloudProvider            types.String `tfsdk:"cloud_provider"`
-	NativeId                 types.String `tfsdk:"native_id"`
-	Status                   types.String `tfsdk:"status"`
-	ControlPlaneAwsAccountId types.String `tfsdk:"control_plane_aws_account_id"`
-	ControlPlaneRoleName     types.String `tfsdk:"control_plane_role_name"`
+	ID            types.String `tfsdk:"id"`
+	CreatedAt     types.String `tfsdk:"created_at"`
+	UpdatedAt     types.String `tfsdk:"updated_at"`
+	Name          types.String `tfsdk:"name"`
+	Type          types.String `tfsdk:"type"`
+	CloudProvider types.String `tfsdk:"cloud_provider"`
+	NativeId      types.String `tfsdk:"native_id"`
+	Status        types.String `tfsdk:"status"`
 }
 
 func (d *projectsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -112,14 +110,6 @@ func (d *projectsDataSource) Schema(_ context.Context, _ datasource.SchemaReques
 							Description: "Status of the project. Valid values: Pending, Disconnected, Connected.",
 							Computed:    true,
 						},
-						"control_plane_aws_account_id": schema.StringAttribute{
-							Description: "AWS account ID for the control plane",
-							Computed:    true,
-						},
-						"control_plane_role_name": schema.StringAttribute{
-							Description: "AWS IAM role name for the control plane",
-							Computed:    true,
-						},
 					},
 				},
 			},
@@ -138,16 +128,14 @@ func (d *projectsDataSource) Read(ctx context.Context, req datasource.ReadReques
 	var state projectsDataSourceModel
 	for _, env := range hostingEnvironments {
 		state.Projects = append(state.Projects, projectsModel{
-			ID:                       types.StringValue(env.ID),
-			CreatedAt:                types.StringValue(env.CreatedAt.Format(time.RFC3339)),
-			UpdatedAt:                types.StringValue(env.UpdatedAt.Format(time.RFC3339)),
-			Name:                     types.StringValue(env.Name),
-			Type:                     types.StringValue(string(env.Type)),
-			CloudProvider:            types.StringValue(string(env.CloudProvider)),
-			NativeId:                 types.StringValue(env.NativeID),
-			Status:                   types.StringValue(string(env.Status)),
-			ControlPlaneAwsAccountId: types.StringValue(env.ControlPlaneAwsAccountId),
-			ControlPlaneRoleName:     types.StringValue(env.ControlPlaneRoleName),
+			ID:            types.StringValue(env.ID),
+			CreatedAt:     types.StringValue(env.CreatedAt.Format(time.RFC3339)),
+			UpdatedAt:     types.StringValue(env.UpdatedAt.Format(time.RFC3339)),
+			Name:          types.StringValue(env.Name),
+			Type:          types.StringValue(string(env.Type)),
+			CloudProvider: types.StringValue(string(env.CloudProvider)),
+			NativeId:      types.StringValue(env.NativeID),
+			Status:        types.StringValue(string(env.Status)),
 		})
 	}
 
