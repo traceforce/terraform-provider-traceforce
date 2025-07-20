@@ -56,8 +56,6 @@ resource "traceforce_source_app" "salesforce" {
 
 ### Read-Only
 
-- `control_plane_aws_account_id` (String) AWS account ID for the control plane
-- `control_plane_role_name` (String) AWS IAM role name for the control plane
 - `created_at` (String) Date and time the project was created
 - `id` (String) System generated ID of the project
 - `status` (String) Status of the project. Valid values: Pending, Disconnected, Connected.

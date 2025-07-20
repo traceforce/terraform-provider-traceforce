@@ -17,8 +17,10 @@ description: |-
 
 ### Required
 
+- `environment_native_id` (String) Native ID of the environment where the datalake is deployed (e.g., GCP project ID).
 - `name` (String) Name of the datalake. This value must be unique within a project.
 - `project_id` (String) ID of the project this datalake belongs to.
+- `region` (String) Datalake region.
 - `type` (String) Type of datalake. Currently supported: BigQuery.
 
 ### Read-Only

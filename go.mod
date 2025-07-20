@@ -8,7 +8,7 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.28.0
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/hashicorp/terraform-plugin-testing v1.13.2
-	github.com/traceforce/traceforce-go-sdk v1.0.4
+	github.com/traceforce/traceforce-go-sdk v1.0.5
 )
 
 require (
@@ -64,5 +64,3 @@ require (
 	google.golang.org/grpc v1.72.1 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 )
-
-replace go/traceforce-go-sdk => github.com/traceforce/traceforce-go-sdk v1.0.4
