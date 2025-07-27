@@ -24,7 +24,7 @@ var (
 	_ resource.ResourceWithImportState = &projectResource{}
 )
 
-// NewProjectResource is a helper function to simplify the provider implementation.
+// NewProjectResource creates a new project resource.
 func NewProjectResource() resource.Resource {
 	return &projectResource{}
 }

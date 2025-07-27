@@ -50,11 +50,11 @@ resource "traceforce_datalake" "from_existing_project" {
 
 Read-Only:
 
-- `cloud_provider` (String) Cloud provider for the project. Valid values: AWS, GCP, Azure.
+- `cloud_provider` (String) Cloud provider for the project. Valid values: aws, gcp, azure.
 - `created_at` (String) Date and time the project was created
 - `id` (String) System generated ID of the project
 - `name` (String) Name of the project. This must be unique.
 - `native_id` (String) Native ID of the cloud project. For example, an AWS account ID, an Azure subscription ID, a GCP project ID, etc.
-- `status` (String) Status of the project. Valid values: Pending, Disconnected, Connected.
-- `type` (String) Type of project. Valid values: Customer Managed, TraceForce Managed.
+- `status` (String) Status of the project. Valid values: pending, disconnected, connected.
+- `type` (String) Type of project. Valid values: customer_managed, traceforce_managed.
 - `updated_at` (String) Date and time the project was last updated

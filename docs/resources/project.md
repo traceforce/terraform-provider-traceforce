@@ -49,14 +49,14 @@ resource "traceforce_source_app" "salesforce" {
 
 ### Required
 
-- `cloud_provider` (String) Cloud provider for the project. Valid values: AWS, GCP, Azure.
+- `cloud_provider` (String) Cloud provider for the project. Valid values: aws, gcp, azure.
 - `name` (String) Name of the project. This value must be unique.
 - `native_id` (String) Native ID of the cloud project. For example, an AWS account ID, an Azure subscription ID, a GCP project ID, etc.
-- `type` (String) Type of project. Valid values: Customer Managed, TraceForce Managed.
+- `type` (String) Type of project. Valid values: customer_managed, traceforce_managed.
 
 ### Read-Only
 
 - `created_at` (String) Date and time the project was created
 - `id` (String) System generated ID of the project
-- `status` (String) Status of the project. Valid values: Pending, Disconnected, Connected.
+- `status` (String) Status of the project. Valid values: pending, disconnected, connected.
 - `updated_at` (String) Date and time the project was last updated

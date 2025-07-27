@@ -99,8 +99,12 @@ func (d *datalakesDataSource) Schema(_ context.Context, _ datasource.SchemaReque
 							Computed:    true,
 						},
 						"status": schema.StringAttribute{
-							Description: "Status of the datalake. Valid values: Waiting for User Input, Ready.",
-							Computed:    true,
+							Description: fmt.Sprintf("Status of the datalake. Valid values: %s, %s, %s, %s.",
+								traceforce.DatalakeStatusPending,
+								traceforce.DatalakeStatusDeployed,
+								traceforce.DatalakeStatusReady,
+								traceforce.DatalakeStatusFailed),
+							Computed: true,
 						},
 						"created_at": schema.StringAttribute{
 							Description: "Date and time the datalake was created",

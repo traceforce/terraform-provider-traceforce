@@ -33,6 +33,18 @@ resource "traceforce_source_app" "salesforce" {
 # Establish post-connection setup
 resource "traceforce_post_connection" "post-connection-example-aws" {
   project_id = traceforce_project.example-aws.id
+
+  infrastructure = {
+    bigquery = {
+      traceforce_schema        = "traceforce_dataset"
+      events_subscription_name = "bigquery-events-subscription"
+    }
+
+    salesforce = {
+      salesforce_client_secret = "projects/example/secrets/salesforce-secret/versions/latest"
+    }
+  }
+
   depends_on = [traceforce_project.example-aws]
 }
 

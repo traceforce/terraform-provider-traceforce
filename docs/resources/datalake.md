@@ -21,11 +21,11 @@ description: |-
 - `name` (String) Name of the datalake. This value must be unique within a project.
 - `project_id` (String) ID of the project this datalake belongs to.
 - `region` (String) Datalake region.
-- `type` (String) Type of datalake. Currently supported: BigQuery.
+- `type` (String) Type of datalake. Currently supported: bigquery.
 
 ### Read-Only
 
 - `created_at` (String) Date and time the datalake was created
 - `id` (String) System generated ID of the datalake
-- `status` (String) Status of the datalake. Valid values: Pending, Waiting for User Input, Ready.
+- `status` (String) Status of the datalake. Valid values: pending, deployed, ready, failed.
 - `updated_at` (String) Date and time the datalake was last updated

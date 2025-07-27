@@ -24,7 +24,7 @@ var (
 	_ resource.ResourceWithImportState = &datalakeResource{}
 )
 
-// NewDatalakeResource is a helper function to simplify the provider implementation.
+// NewDatalakeResource creates a new datalake resource.
 func NewDatalakeResource() resource.Resource {
 	return &datalakeResource{}
 }
@@ -112,10 +112,11 @@ func (r *datalakeResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			},
 			// The following attributes are computed and should never be reflected in changes.
 			"status": schema.StringAttribute{
-				Description: fmt.Sprintf("Status of the datalake. Valid values: %s, %s, %s.",
+				Description: fmt.Sprintf("Status of the datalake. Valid values: %s, %s, %s, %s.",
 					traceforce.DatalakeStatusPending,
-					traceforce.DatalakeStatusWaitingForUserInput,
-					traceforce.DatalakeStatusReady),
+					traceforce.DatalakeStatusDeployed,
+					traceforce.DatalakeStatusReady,
+					traceforce.DatalakeStatusFailed),
 				Computed: true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),

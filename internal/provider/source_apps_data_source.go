@@ -30,19 +30,19 @@ type sourceAppsDataSource struct {
 
 // sourceAppsDataSourceModel maps the data source schema data.
 type sourceAppsDataSourceModel struct {
-	DatalakeId types.String      `tfsdk:"datalake_id"`
-	SourceApps []sourceAppsModel `tfsdk:"source_apps"`
+	HostingEnvironmentId types.String      `tfsdk:"hosting_environment_id"`
+	SourceApps           []sourceAppsModel `tfsdk:"source_apps"`
 }
 
 // sourceAppsModel maps source apps schema data.
 type sourceAppsModel struct {
-	ID         types.String `tfsdk:"id"`
-	DatalakeId types.String `tfsdk:"datalake_id"`
-	Type       types.String `tfsdk:"type"`
-	Name       types.String `tfsdk:"name"`
-	Status     types.String `tfsdk:"status"`
-	CreatedAt  types.String `tfsdk:"created_at"`
-	UpdatedAt  types.String `tfsdk:"updated_at"`
+	ID                   types.String `tfsdk:"id"`
+	HostingEnvironmentId types.String `tfsdk:"hosting_environment_id"`
+	Type                 types.String `tfsdk:"type"`
+	Name                 types.String `tfsdk:"name"`
+	Status               types.String `tfsdk:"status"`
+	CreatedAt            types.String `tfsdk:"created_at"`
+	UpdatedAt            types.String `tfsdk:"updated_at"`
 }
 
 func (d *sourceAppsDataSource) Metadata(_ context.Context, req datasource.MetadataRequest, resp *datasource.MetadataResponse) {
@@ -74,8 +74,8 @@ func (d *sourceAppsDataSource) Configure(_ context.Context, req datasource.Confi
 func (d *sourceAppsDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"datalake_id": schema.StringAttribute{
-				Description: "Filter source apps by datalake ID. If not specified, returns all source apps.",
+			"hosting_environment_id": schema.StringAttribute{
+				Description: "Filter source apps by hosting environment ID. If not specified, returns all source apps.",
 				Optional:    true,
 			},
 			"source_apps": schema.ListNestedAttribute{
@@ -86,8 +86,8 @@ func (d *sourceAppsDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 							Description: "System generated ID of the source app",
 							Computed:    true,
 						},
-						"datalake_id": schema.StringAttribute{
-							Description: "ID of the datalake this source app belongs to",
+						"hosting_environment_id": schema.StringAttribute{
+							Description: "ID of the hosting environment this source app belongs to",
 							Computed:    true,
 						},
 						"type": schema.StringAttribute{
@@ -99,8 +99,12 @@ func (d *sourceAppsDataSource) Schema(_ context.Context, _ datasource.SchemaRequ
 							Computed:    true,
 						},
 						"status": schema.StringAttribute{
-							Description: "Status of the source app. Valid values: Disconnected, Connected.",
-							Computed:    true,
+							Description: fmt.Sprintf("Status of the source app. Valid values: %s, %s, %s, %s.",
+								traceforce.SourceAppStatusPending,
+								traceforce.SourceAppStatusDeployed,
+								traceforce.SourceAppStatusDisconnected,
+								traceforce.SourceAppStatusConnected),
+							Computed: true,
 						},
 						"created_at": schema.StringAttribute{
 							Description: "Date and time the source app was created",
@@ -129,11 +133,11 @@ func (d *sourceAppsDataSource) Read(ctx context.Context, req datasource.ReadRequ
 	var sourceApps []traceforce.SourceApp
 	var err error
 
-	if !config.DatalakeId.IsNull() {
-		// Get source apps filtered by datalake ID
-		sourceApps, err = d.client.GetSourceAppsByDatalake(config.DatalakeId.ValueString())
+	if !config.HostingEnvironmentId.IsNull() {
+		// Get source apps filtered by hosting environment ID
+		sourceApps, err = d.client.GetSourceAppsByHostingEnvironment(config.HostingEnvironmentId.ValueString())
 		if err != nil {
-			resp.Diagnostics.AddError("Error reading source apps by datalake", err.Error())
+			resp.Diagnostics.AddError("Error reading source apps by hosting environment", err.Error())
 			return
 		}
 	} else {
@@ -146,17 +150,17 @@ func (d *sourceAppsDataSource) Read(ctx context.Context, req datasource.ReadRequ
 	}
 
 	var state sourceAppsDataSourceModel
-	state.DatalakeId = config.DatalakeId
+	state.HostingEnvironmentId = config.HostingEnvironmentId
 
 	for _, sourceApp := range sourceApps {
 		state.SourceApps = append(state.SourceApps, sourceAppsModel{
-			ID:         types.StringValue(sourceApp.ID),
-			DatalakeId: types.StringValue(sourceApp.DatalakeID),
-			Type:       types.StringValue(string(sourceApp.Type)),
-			Name:       types.StringValue(sourceApp.Name),
-			Status:     types.StringValue(string(sourceApp.Status)),
-			CreatedAt:  types.StringValue(sourceApp.CreatedAt.Format(time.RFC3339)),
-			UpdatedAt:  types.StringValue(sourceApp.UpdatedAt.Format(time.RFC3339)),
+			ID:                   types.StringValue(sourceApp.ID),
+			HostingEnvironmentId: types.StringValue(sourceApp.HostingEnvironmentID),
+			Type:                 types.StringValue(string(sourceApp.Type)),
+			Name:                 types.StringValue(sourceApp.Name),
+			Status:               types.StringValue(string(sourceApp.Status)),
+			CreatedAt:            types.StringValue(sourceApp.CreatedAt.Format(time.RFC3339)),
+			UpdatedAt:            types.StringValue(sourceApp.UpdatedAt.Format(time.RFC3339)),
 		})
 	}
 
