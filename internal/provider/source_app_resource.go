@@ -24,7 +24,7 @@ var (
 	_ resource.ResourceWithImportState = &sourceAppResource{}
 )
 
-// NewSourceAppResource is a helper function to simplify the provider implementation.
+// NewSourceAppResource creates a new source app resource.
 func NewSourceAppResource() resource.Resource {
 	return &sourceAppResource{}
 }
@@ -36,13 +36,13 @@ type sourceAppResource struct {
 
 // sourceAppResourceModel maps source_apps schema data.
 type sourceAppResourceModel struct {
-	ID         types.String `tfsdk:"id"`
-	DatalakeId types.String `tfsdk:"datalake_id"`
-	Type       types.String `tfsdk:"type"`
-	Name       types.String `tfsdk:"name"`
-	Status     types.String `tfsdk:"status"`
-	CreatedAt  types.String `tfsdk:"created_at"`
-	UpdatedAt  types.String `tfsdk:"updated_at"`
+	ID                   types.String `tfsdk:"id"`
+	HostingEnvironmentId types.String `tfsdk:"hosting_environment_id"`
+	Type                 types.String `tfsdk:"type"`
+	Name                 types.String `tfsdk:"name"`
+	Status               types.String `tfsdk:"status"`
+	CreatedAt            types.String `tfsdk:"created_at"`
+	UpdatedAt            types.String `tfsdk:"updated_at"`
 }
 
 // Metadata returns the resource type name.
@@ -75,8 +75,8 @@ func (r *sourceAppResource) Configure(ctx context.Context, req resource.Configur
 func (r *sourceAppResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"datalake_id": schema.StringAttribute{
-				Description: "ID of the datalake this source app belongs to.",
+			"hosting_environment_id": schema.StringAttribute{
+				Description: "ID of the hosting environment this source app belongs to.",
 				Required:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.RequiresReplace(),
@@ -91,13 +91,14 @@ func (r *sourceAppResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 				},
 			},
 			"name": schema.StringAttribute{
-				Description: "Name of the source app. This value must be unique within a datalake.",
+				Description: "Name of the source app. This value must be unique within a hosting environment.",
 				Required:    true,
 			},
 			// The following attributes are computed and should never be reflected in changes.
 			"status": schema.StringAttribute{
-				Description: fmt.Sprintf("Status of the source app. Valid values: %s, %s, %s.",
+				Description: fmt.Sprintf("Status of the source app. Valid values: %s, %s, %s, %s.",
 					traceforce.SourceAppStatusPending,
+					traceforce.SourceAppStatusDeployed,
 					traceforce.SourceAppStatusDisconnected,
 					traceforce.SourceAppStatusConnected),
 				Computed: true,
@@ -140,9 +141,9 @@ func (r *sourceAppResource) Create(ctx context.Context, req resource.CreateReque
 	}
 
 	input := traceforce.CreateSourceAppRequest{
-		DatalakeID: plan.DatalakeId.ValueString(),
-		Type:       traceforce.SourceAppType(plan.Type.ValueString()),
-		Name:       plan.Name.ValueString(),
+		HostingEnvironmentID: plan.HostingEnvironmentId.ValueString(),
+		Type:                 traceforce.SourceAppType(plan.Type.ValueString()),
+		Name:                 plan.Name.ValueString(),
 	}
 
 	sourceApp, err := r.client.CreateSourceApp(input)
@@ -152,13 +153,13 @@ func (r *sourceAppResource) Create(ctx context.Context, req resource.CreateReque
 	}
 
 	plan = sourceAppResourceModel{
-		ID:         types.StringValue(sourceApp.ID),
-		DatalakeId: types.StringValue(sourceApp.DatalakeID),
-		Type:       types.StringValue(string(sourceApp.Type)),
-		Name:       types.StringValue(sourceApp.Name),
-		Status:     types.StringValue(string(sourceApp.Status)),
-		CreatedAt:  types.StringValue(sourceApp.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt:  types.StringValue(sourceApp.UpdatedAt.Format(time.RFC3339)),
+		ID:                   types.StringValue(sourceApp.ID),
+		HostingEnvironmentId: types.StringValue(sourceApp.HostingEnvironmentID),
+		Type:                 types.StringValue(string(sourceApp.Type)),
+		Name:                 types.StringValue(sourceApp.Name),
+		Status:               types.StringValue(string(sourceApp.Status)),
+		CreatedAt:            types.StringValue(sourceApp.CreatedAt.Format(time.RFC3339)),
+		UpdatedAt:            types.StringValue(sourceApp.UpdatedAt.Format(time.RFC3339)),
 	}
 
 	diags = resp.State.Set(ctx, &plan)
@@ -184,13 +185,13 @@ func (r *sourceAppResource) Read(ctx context.Context, req resource.ReadRequest, 
 	}
 
 	state = sourceAppResourceModel{
-		ID:         types.StringValue(sourceApp.ID),
-		DatalakeId: types.StringValue(sourceApp.DatalakeID),
-		Type:       types.StringValue(string(sourceApp.Type)),
-		Name:       types.StringValue(sourceApp.Name),
-		Status:     types.StringValue(string(sourceApp.Status)),
-		CreatedAt:  types.StringValue(sourceApp.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt:  types.StringValue(sourceApp.UpdatedAt.Format(time.RFC3339)),
+		ID:                   types.StringValue(sourceApp.ID),
+		HostingEnvironmentId: types.StringValue(sourceApp.HostingEnvironmentID),
+		Type:                 types.StringValue(string(sourceApp.Type)),
+		Name:                 types.StringValue(sourceApp.Name),
+		Status:               types.StringValue(string(sourceApp.Status)),
+		CreatedAt:            types.StringValue(sourceApp.CreatedAt.Format(time.RFC3339)),
+		UpdatedAt:            types.StringValue(sourceApp.UpdatedAt.Format(time.RFC3339)),
 	}
 
 	diags = resp.State.Set(ctx, &state)
@@ -222,13 +223,13 @@ func (r *sourceAppResource) Update(ctx context.Context, req resource.UpdateReque
 	}
 
 	plan = sourceAppResourceModel{
-		ID:         types.StringValue(sourceApp.ID),
-		DatalakeId: types.StringValue(sourceApp.DatalakeID),
-		Type:       types.StringValue(string(sourceApp.Type)),
-		Name:       types.StringValue(sourceApp.Name),
-		Status:     types.StringValue(string(sourceApp.Status)),
-		CreatedAt:  types.StringValue(sourceApp.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt:  types.StringValue(sourceApp.UpdatedAt.Format(time.RFC3339)),
+		ID:                   types.StringValue(sourceApp.ID),
+		HostingEnvironmentId: types.StringValue(sourceApp.HostingEnvironmentID),
+		Type:                 types.StringValue(string(sourceApp.Type)),
+		Name:                 types.StringValue(sourceApp.Name),
+		Status:               types.StringValue(string(sourceApp.Status)),
+		CreatedAt:            types.StringValue(sourceApp.CreatedAt.Format(time.RFC3339)),
+		UpdatedAt:            types.StringValue(sourceApp.UpdatedAt.Format(time.RFC3339)),
 	}
 
 	diags = resp.State.Set(ctx, &plan)

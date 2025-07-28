@@ -22,7 +22,7 @@ func TestAccDatalakesDataSource(t *testing.T) {
 					resource.TestCheckResourceAttr("data.traceforce_datalakes.test", "datalakes.0.name", "production-warehouse"),
 					resource.TestCheckResourceAttr("data.traceforce_datalakes.test", "datalakes.0.type", "BigQuery"),
 					resource.TestCheckResourceAttr("data.traceforce_datalakes.test", "datalakes.0.project_id", "project-1"),
-					resource.TestCheckResourceAttr("data.traceforce_datalakes.test", "datalakes.0.status", "Ready"),
+					resource.TestCheckResourceAttrSet("data.traceforce_datalakes.test", "datalakes.0.status"),
 					resource.TestCheckResourceAttrSet("data.traceforce_datalakes.test", "datalakes.0.id"),
 					resource.TestCheckResourceAttrSet("data.traceforce_datalakes.test", "datalakes.0.created_at"),
 					resource.TestCheckResourceAttrSet("data.traceforce_datalakes.test", "datalakes.0.updated_at"),

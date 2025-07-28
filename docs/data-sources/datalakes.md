@@ -32,6 +32,6 @@ Read-Only:
 - `id` (String) System generated ID of the datalake
 - `name` (String) Name of the datalake
 - `project_id` (String) ID of the project this datalake belongs to
-- `status` (String) Status of the datalake. Valid values: Waiting for User Input, Ready.
+- `status` (String) Status of the datalake. Valid values: pending, deployed, ready, failed.
 - `type` (String) Type of datalake. For example, BigQuery, Snowflake, etc.
 - `updated_at` (String) Date and time the datalake was last updated

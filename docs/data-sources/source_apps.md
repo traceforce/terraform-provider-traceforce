@@ -17,7 +17,7 @@ description: |-
 
 ### Optional
 
-- `datalake_id` (String) Filter source apps by datalake ID. If not specified, returns all source apps.
+- `hosting_environment_id` (String) Filter source apps by hosting environment ID. If not specified, returns all source apps.
 
 ### Read-Only
 
@@ -29,9 +29,9 @@ description: |-
 Read-Only:
 
 - `created_at` (String) Date and time the source app was created
-- `datalake_id` (String) ID of the datalake this source app belongs to
+- `hosting_environment_id` (String) ID of the hosting environment this source app belongs to
 - `id` (String) System generated ID of the source app
 - `name` (String) Name of the source app
-- `status` (String) Status of the source app. Valid values: Disconnected, Connected.
+- `status` (String) Status of the source app. Valid values: pending, deployed, disconnected, connected.
 - `type` (String) Type of source app. For example, Salesforce, HubSpot, etc.
 - `updated_at` (String) Date and time the source app was last updated

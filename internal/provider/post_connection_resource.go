@@ -5,12 +5,10 @@ package provider
 
 import (
 	"context"
-	"time"
+	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	traceforce "github.com/traceforce/traceforce-go-sdk"
 )
@@ -22,7 +20,7 @@ var (
 	_ resource.ResourceWithImportState = &postConnectionResource{}
 )
 
-// NewPostConnectionResource is a helper function to simplify the provider implementation.
+// NewPostConnectionResource creates a new post connection resource.
 func NewPostConnectionResource() resource.Resource {
 	return &postConnectionResource{}
 }
@@ -32,13 +30,40 @@ type postConnectionResource struct {
 	client *traceforce.Client
 }
 
+// baseInfrastructureModel maps base infrastructure schema data.
+type baseInfrastructureModel struct {
+	DataplaneIdentityIdentifier types.String `tfsdk:"dataplane_identity_identifier"`
+}
+
+// infrastructureModel maps infrastructure schema data.
+type infrastructureModel struct {
+	Base       *baseInfrastructureModel       `tfsdk:"base"`
+	BigQuery   *bigqueryInfrastructureModel   `tfsdk:"bigquery"`
+	Salesforce *salesforceInfrastructureModel `tfsdk:"salesforce"`
+}
+
+// bigqueryInfrastructureModel maps bigquery infrastructure schema data.
+type bigqueryInfrastructureModel struct {
+	TraceforceSchema       types.String `tfsdk:"traceforce_schema"`
+	EventsSubscriptionName types.String `tfsdk:"events_subscription_name"`
+}
+
+// salesforceInfrastructureModel maps salesforce infrastructure schema data.
+type salesforceInfrastructureModel struct {
+	ClientID     types.String `tfsdk:"salesforce_client_id"`
+	Domain       types.String `tfsdk:"salesforce_domain"`
+	ClientSecret types.String `tfsdk:"salesforce_client_secret"`
+}
+
 // postConnectionResourceModel maps post_connection schema data.
 type postConnectionResourceModel struct {
-	ProjectId types.String `tfsdk:"project_id"`
-	ID        types.String `tfsdk:"id"`
-	Status    types.String `tfsdk:"status"`
-	CreatedAt types.String `tfsdk:"created_at"`
-	UpdatedAt types.String `tfsdk:"updated_at"`
+	ProjectId                   types.String        `tfsdk:"project_id"`
+	Infrastructure              infrastructureModel `tfsdk:"infrastructure"`
+	TerraformURL                types.String        `tfsdk:"terraform_url"`
+	TerraformModuleVersions     types.String        `tfsdk:"terraform_module_versions"`
+	TerraformModuleVersionsHash types.String        `tfsdk:"terraform_module_versions_hash"`
+	DeployedDatalakeIds         types.List          `tfsdk:"deployed_datalake_ids"`
+	DeployedSourceAppIds        types.List          `tfsdk:"deployed_source_app_ids"`
 }
 
 // Metadata returns the resource type name.
@@ -72,38 +97,78 @@ func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequ
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
 			"project_id": schema.StringAttribute{
-				Description: "ID of the project to post-connect.",
+				Description: "ID of the project in TraceForce to post-connect.",
 				Required:    true,
 			},
-			// The following attributes are computed and should never be reflected in changes.
-			//e need to set them to unknown when the resource is created
-			"status": schema.StringAttribute{
-				Description: "Status of the connection. For example, connected, disconnected, etc.",
-				Computed:    true,
-			},
-			"id": schema.StringAttribute{
-				Description: "System generated ID of the connection",
-				Computed:    true,
-				Optional:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
+			"infrastructure": schema.SingleNestedAttribute{
+				Description: "Infrastructure configuration for deployment",
+				Required:    true,
+				Attributes: map[string]schema.Attribute{
+					"base": schema.SingleNestedAttribute{
+						Description: "Base infrastructure outputs",
+						Optional:    true,
+						Attributes: map[string]schema.Attribute{
+							"dataplane_identity_identifier": schema.StringAttribute{
+								Description: "Dataplane identity identifier for base infrastructure",
+								Required:    true,
+							},
+						},
+					},
+					"bigquery": schema.SingleNestedAttribute{
+						Description: "BigQuery datalake infrastructure outputs",
+						Optional:    true,
+						Attributes: map[string]schema.Attribute{
+							"traceforce_schema": schema.StringAttribute{
+								Description: "BigQuery dataset ID for TraceForce schema",
+								Required:    true,
+							},
+							"events_subscription_name": schema.StringAttribute{
+								Description: "PubSub subscription name for BigQuery events",
+								Required:    true,
+							},
+						},
+					},
+					"salesforce": schema.SingleNestedAttribute{
+						Description: "Salesforce source app infrastructure outputs",
+						Optional:    true,
+						Attributes: map[string]schema.Attribute{
+							"salesforce_client_id": schema.StringAttribute{
+								Description: "Salesforce connected app client ID",
+								Required:    true,
+							},
+							"salesforce_domain": schema.StringAttribute{
+								Description: "Salesforce domain (e.g., mycompany.my.salesforce.com)",
+								Required:    true,
+							},
+							"salesforce_client_secret": schema.StringAttribute{
+								Description: "Secret Manager resource name for Salesforce client secret",
+								Required:    true,
+							},
+						},
+					},
 				},
 			},
-			"created_at": schema.StringAttribute{
-				Description: "Date and time the connection was created",
-				Computed:    true,
-				Optional:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
+			"terraform_url": schema.StringAttribute{
+				Description: "URL of the Terraform module repository",
+				Required:    true,
 			},
-			"updated_at": schema.StringAttribute{
-				Description: "Date and time the connection was last updated",
-				Computed:    true,
+			"terraform_module_versions": schema.StringAttribute{
+				Description: "JSON string containing Terraform module versions",
+				Required:    true,
+			},
+			"terraform_module_versions_hash": schema.StringAttribute{
+				Description: "Hash of the Terraform module versions for integrity verification",
+				Required:    true,
+			},
+			"deployed_datalake_ids": schema.ListAttribute{
+				Description: "List of datalake IDs that were deployed by terraform",
 				Optional:    true,
-				PlanModifiers: []planmodifier.String{
-					stringplanmodifier.UseStateForUnknown(),
-				},
+				ElementType: types.StringType,
+			},
+			"deployed_source_app_ids": schema.ListAttribute{
+				Description: "List of source app IDs that were deployed by terraform",
+				Optional:    true,
+				ElementType: types.StringType,
 			},
 		},
 	}
@@ -119,22 +184,12 @@ func (r *postConnectionResource) Create(ctx context.Context, req resource.Create
 		return
 	}
 
-	// Execute post-connection process using the project ID
-	connection, err := r.client.PostConnection(plan.ProjectId.ValueString())
-	if err != nil {
+	if err := r.executePostConnection(ctx, plan); err != nil {
 		resp.Diagnostics.AddError("Error executing post-connection", err.Error())
 		return
 	}
 
-	plan = postConnectionResourceModel{
-		ProjectId: plan.ProjectId,
-		ID:        types.StringValue(connection.ID),
-		Status:    types.StringValue(string(connection.Status)),
-		CreatedAt: types.StringValue(connection.CreatedAt.Format(time.RFC3339)),
-		UpdatedAt: types.StringValue(connection.UpdatedAt.Format(time.RFC3339)),
-	}
-
-	// Set state
+	// Set state with the plan data
 	diags = resp.State.Set(ctx, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -142,15 +197,100 @@ func (r *postConnectionResource) Create(ctx context.Context, req resource.Create
 	}
 }
 
+// executePostConnection handles the post-connection logic.
+func (r *postConnectionResource) executePostConnection(ctx context.Context, plan postConnectionResourceModel) error {
+	postConnReq := &traceforce.PostConnectionRequest{
+		Infrastructure: &traceforce.Infrastructure{},
+	}
+
+	// Add Base configuration if present
+	if plan.Infrastructure.Base != nil {
+		postConnReq.Infrastructure.Base = &traceforce.BaseInfrastructure{
+			DataplaneIdentityIdentifier: plan.Infrastructure.Base.DataplaneIdentityIdentifier.ValueString(),
+		}
+	}
+
+	// Add BigQuery configuration if present
+	if plan.Infrastructure.BigQuery != nil {
+		postConnReq.Infrastructure.BigQuery = &traceforce.BigQueryInfrastructure{
+			TraceforceSchema:       plan.Infrastructure.BigQuery.TraceforceSchema.ValueString(),
+			EventsSubscriptionName: plan.Infrastructure.BigQuery.EventsSubscriptionName.ValueString(),
+		}
+	}
+
+	// Add Salesforce configuration if present
+	if plan.Infrastructure.Salesforce != nil {
+		postConnReq.Infrastructure.Salesforce = &traceforce.SalesforceInfrastructure{
+			ClientID:     plan.Infrastructure.Salesforce.ClientID.ValueString(),
+			Domain:       plan.Infrastructure.Salesforce.Domain.ValueString(),
+			ClientSecret: plan.Infrastructure.Salesforce.ClientSecret.ValueString(),
+		}
+	}
+
+	// Add terraform metadata
+	postConnReq.TerraformURL = plan.TerraformURL.ValueString()
+	postConnReq.TerraformModuleVersions = plan.TerraformModuleVersions.ValueString()
+	postConnReq.TerraformModuleVersionsHash = plan.TerraformModuleVersionsHash.ValueString()
+
+	// Add deployed resource IDs
+	if !plan.DeployedDatalakeIds.IsNull() {
+		diags := plan.DeployedDatalakeIds.ElementsAs(ctx, &postConnReq.DeployedDatalakeIds, false)
+		if diags.HasError() {
+			return fmt.Errorf("failed to extract deployed datalake IDs: %v", diags)
+		}
+	}
+
+	if !plan.DeployedSourceAppIds.IsNull() {
+		diags := plan.DeployedSourceAppIds.ElementsAs(ctx, &postConnReq.DeployedSourceAppIds, false)
+		if diags.HasError() {
+			return fmt.Errorf("failed to extract deployed source app IDs: %v", diags)
+		}
+	}
+
+	// Execute post-connection process using the project ID and structured request
+	err := r.client.PostConnection(plan.ProjectId.ValueString(), postConnReq)
+
+	return err
+}
+
 // Read refreshes the Terraform state with the latest data.
 func (r *postConnectionResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	// This is a no-op for this resource. A new post connection resource is an event notification and
-	// is always created whenever declared in main.tf.
+	var state postConnectionResourceModel
+
+	// Get current state from Terraform
+	diags := req.State.Get(ctx, &state)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// For this resource, we simply maintain the current state
+	// This allows Terraform to detect changes and trigger re-deployment
+	diags = resp.State.Set(ctx, &state)
+	resp.Diagnostics.Append(diags...)
 }
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *postConnectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	// This is a no-op for this resource.
+	var plan postConnectionResourceModel
+
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if err := r.executePostConnection(ctx, plan); err != nil {
+		resp.Diagnostics.AddError("Error executing post-connection", err.Error())
+		return
+	}
+
+	// Set state with the plan data
+	diags = resp.State.Set(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 // Delete deletes the resource and removes the Terraform state on success.

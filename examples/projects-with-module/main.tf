@@ -39,6 +39,14 @@ resource "traceforce_datalake" "bigquery-analytics" {
 # Establish post-connection setup
 resource "traceforce_post_connection" "post-connection-example-gcp" {
   project_id = traceforce_project.example-gcp.id
+
+  infrastructure = {
+    bigquery = {
+      traceforce_schema        = "traceforce_dataset"
+      events_subscription_name = "bigquery-events-subscription"
+    }
+  }
+
   depends_on = [traceforce_datalake.bigquery-analytics]
 }
 

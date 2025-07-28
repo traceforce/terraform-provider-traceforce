@@ -17,13 +17,13 @@ description: |-
 
 ### Required
 
-- `datalake_id` (String) ID of the datalake this source app belongs to.
-- `name` (String) Name of the source app. This value must be unique within a datalake.
-- `type` (String) Type of source app. Currently supported: Salesforce.
+- `hosting_environment_id` (String) ID of the hosting environment this source app belongs to.
+- `name` (String) Name of the source app. This value must be unique within a hosting environment.
+- `type` (String) Type of source app. Currently supported: salesforce.
 
 ### Read-Only
 
 - `created_at` (String) Date and time the source app was created
 - `id` (String) System generated ID of the source app
-- `status` (String) Status of the source app. Valid values: Pending, Disconnected, Connected.
+- `status` (String) Status of the source app. Valid values: pending, deployed, disconnected, connected.
 - `updated_at` (String) Date and time the source app was last updated

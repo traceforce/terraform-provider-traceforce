@@ -15,7 +15,6 @@ func TestAccSourceAppResource(t *testing.T) {
 	// Different Terraform versions may be triggered in parallel so
 	// we need to ensure the resource name is unique.
 	projectName := "z-project-" + uuid.New().String()
-	datalakeName := "z-datalake-" + uuid.New().String()
 	sourceAppName := "z-sourceapp-" + uuid.New().String()
 
 	resource.Test(t, resource.TestCase{
@@ -32,23 +31,17 @@ resource "traceforce_project" "test" {
   native_id      = "my-gcp-project"
 }
 
-resource "traceforce_datalake" "test" {
-  project_id = traceforce_project.test.id
-  type       = "BigQuery"
-  name       = "` + datalakeName + `"
-}
-
 resource "traceforce_source_app" "test" {
-  datalake_id = traceforce_datalake.test.id
-  type        = "Salesforce"
-  name        = "` + sourceAppName + `"
+  hosting_environment_id = traceforce_project.test.id
+  type                   = "Salesforce"
+  name                   = "` + sourceAppName + `"
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
 					// Verify attributes
 					resource.TestCheckResourceAttr("traceforce_source_app.test", "type", "Salesforce"),
 					resource.TestCheckResourceAttr("traceforce_source_app.test", "name", sourceAppName),
-					resource.TestCheckResourceAttrSet("traceforce_source_app.test", "datalake_id"),
+					resource.TestCheckResourceAttrSet("traceforce_source_app.test", "hosting_environment_id"),
 					// Verify dynamic values have any value set in the state.
 					resource.TestCheckResourceAttrSet("traceforce_source_app.test", "id"),
 					resource.TestCheckResourceAttrSet("traceforce_source_app.test", "status"),
@@ -74,16 +67,10 @@ resource "traceforce_project" "test" {
   native_id      = "my-gcp-project"
 }
 
-resource "traceforce_datalake" "test" {
-  project_id = traceforce_project.test.id
-  type       = "BigQuery"
-  name       = "` + datalakeName + `"
-}
-
 resource "traceforce_source_app" "test" {
-  datalake_id = traceforce_datalake.test.id
-  type        = "Salesforce"
-  name        = "` + sourceAppName + `-updated"
+  hosting_environment_id = traceforce_project.test.id
+  type                   = "Salesforce"
+  name                   = "` + sourceAppName + `-updated"
 }
 `,
 				Check: resource.ComposeAggregateTestCheckFunc(
