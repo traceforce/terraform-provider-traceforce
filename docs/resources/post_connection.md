@@ -13,13 +13,13 @@ description: |-
 ## Example Usage
 
 ```terraform
-# Post-connection with base, datalake and source app infrastructure
 resource "traceforce_post_connection" "example" {
   project_id = traceforce_project.example.id
 
   infrastructure = {
     base = {
-      dataplane_identity_identifier = "dataplane-identity-12345"
+      dataplane_identity_identifier   = "dataplane-identity-12345"
+      workload_identity_provider_name = "projects/123/locations/global/workloadIdentityPools/traceforce-pool/providers/control-plane-aws"
     }
 
     bigquery = {
@@ -32,7 +32,6 @@ resource "traceforce_post_connection" "example" {
     }
   }
 
-  # Terraform deployment metadata
   terraform_url                  = "https://github.com/traceforce/terraform-modules"
   terraform_module_versions      = <<-EOT
   {
@@ -91,6 +90,10 @@ Optional:
 Required:
 
 - `dataplane_identity_identifier` (String) Dataplane identity identifier for base infrastructure
+
+Optional:
+
+- `workload_identity_provider_name` (String) Workload identity provider name for external authentication
 
 
 <a id="nestedatt--infrastructure--bigquery"></a>
