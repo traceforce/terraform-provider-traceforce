@@ -1,29 +1,25 @@
-# Create a project in AWS
 resource "traceforce_project" "production" {
   name           = "production"
-  type           = "Customer Managed"
+  type           = "customer_managed"
   cloud_provider = "AWS"
-  native_id      = "123456789012" # AWS Account ID
+  native_id      = "123456789012"
 }
 
-# Create a project in GCP  
 resource "traceforce_project" "staging" {
   name           = "staging"
-  type           = "TraceForce Managed"
+  type           = "traceforce_managed"
   cloud_provider = "GCP"
   native_id      = "my-gcp-project-id"
 }
 
-# Create a datalake in the project
 resource "traceforce_datalake" "analytics" {
   name       = "analytics"
   project_id = traceforce_project.production.id
-  type       = "BigQuery"
+  type       = "bigquery"
 }
 
-# Create a source app connected to the datalake
 resource "traceforce_source_app" "salesforce" {
   name        = "salesforce-prod"
   datalake_id = traceforce_datalake.analytics.id
-  type        = "Salesforce"
+  type        = "salesforce"
 }

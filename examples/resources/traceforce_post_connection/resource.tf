@@ -1,4 +1,3 @@
-# Post-connection with base, datalake and source app infrastructure
 resource "traceforce_post_connection" "example" {
   project_id = traceforce_project.example.id
 
@@ -17,7 +16,6 @@ resource "traceforce_post_connection" "example" {
     }
   }
 
-  # Terraform deployment metadata
   terraform_url                  = "https://github.com/traceforce/terraform-modules"
   terraform_module_versions      = <<-EOT
   {
