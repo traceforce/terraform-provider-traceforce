@@ -32,7 +32,8 @@ type postConnectionResource struct {
 
 // baseInfrastructureModel maps base infrastructure schema data.
 type baseInfrastructureModel struct {
-	DataplaneIdentityIdentifier types.String `tfsdk:"dataplane_identity_identifier"`
+	DataplaneIdentityIdentifier  types.String `tfsdk:"dataplane_identity_identifier"`
+	WorkloadIdentityProviderName types.String `tfsdk:"workload_identity_provider_name"`
 }
 
 // infrastructureModel maps infrastructure schema data.
@@ -111,6 +112,10 @@ func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequ
 							"dataplane_identity_identifier": schema.StringAttribute{
 								Description: "Dataplane identity identifier for base infrastructure",
 								Required:    true,
+							},
+							"workload_identity_provider_name": schema.StringAttribute{
+								Description: "Workload identity provider name for external authentication",
+								Optional:    true,
 							},
 						},
 					},
@@ -205,9 +210,16 @@ func (r *postConnectionResource) executePostConnection(ctx context.Context, plan
 
 	// Add Base configuration if present
 	if plan.Infrastructure.Base != nil {
-		postConnReq.Infrastructure.Base = &traceforce.BaseInfrastructure{
+		baseInfra := &traceforce.BaseInfrastructure{
 			DataplaneIdentityIdentifier: plan.Infrastructure.Base.DataplaneIdentityIdentifier.ValueString(),
 		}
+
+		// Only set WorkloadIdentityProviderName if it's not null
+		if !plan.Infrastructure.Base.WorkloadIdentityProviderName.IsNull() {
+			baseInfra.WorkloadIdentityProviderName = plan.Infrastructure.Base.WorkloadIdentityProviderName.ValueString()
+		}
+
+		postConnReq.Infrastructure.Base = baseInfra
 	}
 
 	// Add BigQuery configuration if present
