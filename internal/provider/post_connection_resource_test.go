@@ -285,6 +285,7 @@ resource "traceforce_post_connection" "test" {
   infrastructure = {
     base = {
       dataplane_identity_identifier = "%s"
+      workload_identity_provider_name = "projects/123/locations/global/workloadIdentityPools/test-pool/providers/test-provider"
     }
   }
   

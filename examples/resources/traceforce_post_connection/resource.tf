@@ -3,7 +3,8 @@ resource "traceforce_post_connection" "example" {
 
   infrastructure = {
     base = {
-      dataplane_identity_identifier = "dataplane-identity-12345"
+      dataplane_identity_identifier   = "dataplane-identity-12345"
+      workload_identity_provider_name = "projects/123/locations/global/workloadIdentityPools/traceforce-pool/providers/control-plane-aws"
     }
 
     bigquery = {
