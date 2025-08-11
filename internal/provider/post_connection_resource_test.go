@@ -169,6 +169,7 @@ func TestAccPostConnectionResourceWithBase(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.base.dataplane_identity_identifier", dataplaneIdentifier),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.base.workload_identity_provider_name", "projects/123/locations/global/workloadIdentityPools/test-pool/providers/test-provider"),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.base.auth_view_generator_function_name", "test-auth-view-generator-function"),
+					resource.TestCheckResourceAttr(resourceName, "infrastructure.base.auth_view_generator_function_url", "https://test-function-url.cloudfunctions.net/auth-view-generator"),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.base.traceforce_bucket_name", "test-traceforce-bucket"),
 					resource.TestCheckResourceAttrSet(resourceName, "terraform_url"),
 					resource.TestCheckResourceAttrSet(resourceName, "terraform_module_versions"),
@@ -298,6 +299,7 @@ resource "traceforce_post_connection" "test" {
       dataplane_identity_identifier = "%s"
       workload_identity_provider_name = "projects/123/locations/global/workloadIdentityPools/test-pool/providers/test-provider"
       auth_view_generator_function_name = "test-auth-view-generator-function"
+      auth_view_generator_function_url = "https://test-function-url.cloudfunctions.net/auth-view-generator"
       traceforce_bucket_name = "test-traceforce-bucket"
     }
   }

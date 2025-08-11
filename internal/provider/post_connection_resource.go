@@ -35,6 +35,7 @@ type baseInfrastructureModel struct {
 	DataplaneIdentityIdentifier   types.String `tfsdk:"dataplane_identity_identifier"`
 	WorkloadIdentityProviderName  types.String `tfsdk:"workload_identity_provider_name"`
 	AuthViewGeneratorFunctionName types.String `tfsdk:"auth_view_generator_function_name"`
+	AuthViewGeneratorFunctionURL  types.String `tfsdk:"auth_view_generator_function_url"`
 	TraceforceBucketName          types.String `tfsdk:"traceforce_bucket_name"`
 }
 
@@ -121,6 +122,10 @@ func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequ
 							},
 							"auth_view_generator_function_name": schema.StringAttribute{
 								Description: "Auth view generator Cloud Function name",
+								Required:    true,
+							},
+							"auth_view_generator_function_url": schema.StringAttribute{
+								Description: "Auth view generator Cloud Function URL",
 								Required:    true,
 							},
 							"traceforce_bucket_name": schema.StringAttribute{
@@ -224,6 +229,7 @@ func (r *postConnectionResource) executePostConnection(ctx context.Context, plan
 			DataplaneIdentityIdentifier:   plan.Infrastructure.Base.DataplaneIdentityIdentifier.ValueString(),
 			WorkloadIdentityProviderName:  plan.Infrastructure.Base.WorkloadIdentityProviderName.ValueString(),
 			AuthViewGeneratorFunctionName: plan.Infrastructure.Base.AuthViewGeneratorFunctionName.ValueString(),
+			AuthViewGeneratorFunctionURL:  plan.Infrastructure.Base.AuthViewGeneratorFunctionURL.ValueString(),
 			TraceforceBucketName:          plan.Infrastructure.Base.TraceforceBucketName.ValueString(),
 		}
 

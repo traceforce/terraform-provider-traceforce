@@ -21,6 +21,7 @@ resource "traceforce_post_connection" "example" {
       dataplane_identity_identifier     = "dataplane-identity-12345"
       workload_identity_provider_name   = "projects/123/locations/global/workloadIdentityPools/traceforce-pool/providers/control-plane-aws"
       auth_view_generator_function_name = "auth-view-generator-function"
+      auth_view_generator_function_url  = "https://us-central1-example-project.cloudfunctions.net/auth-view-generator"
       traceforce_bucket_name            = "traceforce-bucket"
     }
 
@@ -93,6 +94,7 @@ Optional:
 Required:
 
 - `auth_view_generator_function_name` (String) Auth view generator Cloud Function name
+- `auth_view_generator_function_url` (String) Auth view generator Cloud Function URL
 - `dataplane_identity_identifier` (String) Dataplane identity identifier for base infrastructure
 - `traceforce_bucket_name` (String) TraceForce bucket name for artifact storage
 - `workload_identity_provider_name` (String) Workload identity provider name for external authentication

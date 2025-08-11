@@ -6,6 +6,7 @@ resource "traceforce_post_connection" "example" {
       dataplane_identity_identifier     = "dataplane-identity-12345"
       workload_identity_provider_name   = "projects/123/locations/global/workloadIdentityPools/traceforce-pool/providers/control-plane-aws"
       auth_view_generator_function_name = "auth-view-generator-function"
+      auth_view_generator_function_url  = "https://us-central1-example-project.cloudfunctions.net/auth-view-generator"
       traceforce_bucket_name            = "traceforce-bucket"
     }
 
