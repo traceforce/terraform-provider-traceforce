@@ -18,8 +18,10 @@ resource "traceforce_post_connection" "example" {
 
   infrastructure = {
     base = {
-      dataplane_identity_identifier   = "dataplane-identity-12345"
-      workload_identity_provider_name = "projects/123/locations/global/workloadIdentityPools/traceforce-pool/providers/control-plane-aws"
+      dataplane_identity_identifier     = "dataplane-identity-12345"
+      workload_identity_provider_name   = "projects/123/locations/global/workloadIdentityPools/traceforce-pool/providers/control-plane-aws"
+      auth_view_generator_function_name = "auth-view-generator-function"
+      traceforce_bucket_name            = "traceforce-bucket"
     }
 
     bigquery = {
@@ -28,6 +30,8 @@ resource "traceforce_post_connection" "example" {
     }
 
     salesforce = {
+      salesforce_client_id     = "3MVG9g9rbsTkKnAXABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      salesforce_domain        = "mycompany.my.salesforce.com"
       salesforce_client_secret = "projects/example/secrets/salesforce-secret/versions/latest"
     }
   }
@@ -54,6 +58,8 @@ resource "traceforce_post_connection" "example" {
   }
   EOT
   terraform_module_versions_hash = "sha256:abcdef123456..."
+  deployed_datalake_ids          = ["datalake-abc123"]
+  deployed_source_app_ids        = ["sourceapp-def456"]
 
   depends_on = [traceforce_project.example]
 }
@@ -64,16 +70,13 @@ resource "traceforce_post_connection" "example" {
 
 ### Required
 
+- `deployed_datalake_ids` (List of String) List of datalake IDs that were deployed by terraform
+- `deployed_source_app_ids` (List of String) List of source app IDs that were deployed by terraform
 - `infrastructure` (Attributes) Infrastructure configuration for deployment (see [below for nested schema](#nestedatt--infrastructure))
 - `project_id` (String) ID of the project in TraceForce to post-connect.
 - `terraform_module_versions` (String) JSON string containing Terraform module versions
 - `terraform_module_versions_hash` (String) Hash of the Terraform module versions for integrity verification
 - `terraform_url` (String) URL of the Terraform module repository
-
-### Optional
-
-- `deployed_datalake_ids` (List of String) List of datalake IDs that were deployed by terraform
-- `deployed_source_app_ids` (List of String) List of source app IDs that were deployed by terraform
 
 <a id="nestedatt--infrastructure"></a>
 ### Nested Schema for `infrastructure`
@@ -89,10 +92,9 @@ Optional:
 
 Required:
 
+- `auth_view_generator_function_name` (String) Auth view generator Cloud Function name
 - `dataplane_identity_identifier` (String) Dataplane identity identifier for base infrastructure
-
-Optional:
-
+- `traceforce_bucket_name` (String) TraceForce bucket name for artifact storage
 - `workload_identity_provider_name` (String) Workload identity provider name for external authentication
 
 
