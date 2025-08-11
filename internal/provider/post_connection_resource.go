@@ -32,8 +32,10 @@ type postConnectionResource struct {
 
 // baseInfrastructureModel maps base infrastructure schema data.
 type baseInfrastructureModel struct {
-	DataplaneIdentityIdentifier  types.String `tfsdk:"dataplane_identity_identifier"`
-	WorkloadIdentityProviderName types.String `tfsdk:"workload_identity_provider_name"`
+	DataplaneIdentityIdentifier   types.String `tfsdk:"dataplane_identity_identifier"`
+	WorkloadIdentityProviderName  types.String `tfsdk:"workload_identity_provider_name"`
+	AuthViewGeneratorFunctionName types.String `tfsdk:"auth_view_generator_function_name"`
+	TraceforceBucketName          types.String `tfsdk:"traceforce_bucket_name"`
 }
 
 // infrastructureModel maps infrastructure schema data.
@@ -115,7 +117,15 @@ func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequ
 							},
 							"workload_identity_provider_name": schema.StringAttribute{
 								Description: "Workload identity provider name for external authentication",
-								Optional:    true,
+								Required:    true,
+							},
+							"auth_view_generator_function_name": schema.StringAttribute{
+								Description: "Auth view generator Cloud Function name",
+								Required:    true,
+							},
+							"traceforce_bucket_name": schema.StringAttribute{
+								Description: "TraceForce bucket name for artifact storage",
+								Required:    true,
 							},
 						},
 					},
@@ -167,12 +177,12 @@ func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequ
 			},
 			"deployed_datalake_ids": schema.ListAttribute{
 				Description: "List of datalake IDs that were deployed by terraform",
-				Optional:    true,
+				Required:    true,
 				ElementType: types.StringType,
 			},
 			"deployed_source_app_ids": schema.ListAttribute{
 				Description: "List of source app IDs that were deployed by terraform",
-				Optional:    true,
+				Required:    true,
 				ElementType: types.StringType,
 			},
 		},
@@ -211,12 +221,10 @@ func (r *postConnectionResource) executePostConnection(ctx context.Context, plan
 	// Add Base configuration if present
 	if plan.Infrastructure.Base != nil {
 		baseInfra := &traceforce.BaseInfrastructure{
-			DataplaneIdentityIdentifier: plan.Infrastructure.Base.DataplaneIdentityIdentifier.ValueString(),
-		}
-
-		// Only set WorkloadIdentityProviderName if it's not null
-		if !plan.Infrastructure.Base.WorkloadIdentityProviderName.IsNull() {
-			baseInfra.WorkloadIdentityProviderName = plan.Infrastructure.Base.WorkloadIdentityProviderName.ValueString()
+			DataplaneIdentityIdentifier:   plan.Infrastructure.Base.DataplaneIdentityIdentifier.ValueString(),
+			WorkloadIdentityProviderName:  plan.Infrastructure.Base.WorkloadIdentityProviderName.ValueString(),
+			AuthViewGeneratorFunctionName: plan.Infrastructure.Base.AuthViewGeneratorFunctionName.ValueString(),
+			TraceforceBucketName:          plan.Infrastructure.Base.TraceforceBucketName.ValueString(),
 		}
 
 		postConnReq.Infrastructure.Base = baseInfra
@@ -245,18 +253,14 @@ func (r *postConnectionResource) executePostConnection(ctx context.Context, plan
 	postConnReq.TerraformModuleVersionsHash = plan.TerraformModuleVersionsHash.ValueString()
 
 	// Add deployed resource IDs
-	if !plan.DeployedDatalakeIds.IsNull() {
-		diags := plan.DeployedDatalakeIds.ElementsAs(ctx, &postConnReq.DeployedDatalakeIds, false)
-		if diags.HasError() {
-			return fmt.Errorf("failed to extract deployed datalake IDs: %v", diags)
-		}
+	diags := plan.DeployedDatalakeIds.ElementsAs(ctx, &postConnReq.DeployedDatalakeIds, false)
+	if diags.HasError() {
+		return fmt.Errorf("failed to extract deployed datalake IDs: %v", diags)
 	}
 
-	if !plan.DeployedSourceAppIds.IsNull() {
-		diags := plan.DeployedSourceAppIds.ElementsAs(ctx, &postConnReq.DeployedSourceAppIds, false)
-		if diags.HasError() {
-			return fmt.Errorf("failed to extract deployed source app IDs: %v", diags)
-		}
+	diags = plan.DeployedSourceAppIds.ElementsAs(ctx, &postConnReq.DeployedSourceAppIds, false)
+	if diags.HasError() {
+		return fmt.Errorf("failed to extract deployed source app IDs: %v", diags)
 	}
 
 	// Execute post-connection process using the project ID and structured request
