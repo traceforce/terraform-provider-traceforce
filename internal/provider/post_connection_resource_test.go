@@ -46,6 +46,7 @@ func TestAccPostConnectionResourceWithBigQuery(t *testing.T) {
 	projectId := "z-project-" + uuid.New().String()
 	resourceName := "traceforce_post_connection.test"
 	traceforceSchema := "z_traceforce_dataset_" + uuid.New().String()
+	traceforceSecureViewsSchema := "z_traceforce_secure_views_dataset_" + uuid.New().String()
 	eventsSubscription := "z-events-subscription-" + uuid.New().String()
 
 	resource.Test(t, resource.TestCase{
@@ -54,10 +55,11 @@ func TestAccPostConnectionResourceWithBigQuery(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing - with BigQuery configuration
 			{
-				Config: testAccPostConnectionResourceConfigWithBigQuery(projectId, traceforceSchema, eventsSubscription),
+				Config: testAccPostConnectionResourceConfigWithBigQuery(projectId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "project_id", projectId),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.bigquery.traceforce_schema", traceforceSchema),
+					resource.TestCheckResourceAttr(resourceName, "infrastructure.bigquery.traceforce_secure_views_schema", traceforceSecureViewsSchema),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.bigquery.events_subscription_name", eventsSubscription),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "status"),
@@ -116,6 +118,7 @@ func TestAccPostConnectionResourceWithBoth(t *testing.T) {
 	projectId := "z-project-" + uuid.New().String()
 	resourceName := "traceforce_post_connection.test"
 	traceforceSchema := "z_traceforce_dataset_" + uuid.New().String()
+	traceforceSecureViewsSchema := "z_traceforce_secure_views_dataset_" + uuid.New().String()
 	eventsSubscription := "z-events-subscription-" + uuid.New().String()
 	clientId := "test_client_id_" + uuid.New().String()
 	domain := "test-domain-" + uuid.New().String() + ".my.salesforce.com"
@@ -127,10 +130,11 @@ func TestAccPostConnectionResourceWithBoth(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing - with both BigQuery and Salesforce configuration
 			{
-				Config: testAccPostConnectionResourceConfigWithBoth(projectId, traceforceSchema, eventsSubscription, clientId, domain, secretMountPath),
+				Config: testAccPostConnectionResourceConfigWithBoth(projectId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription, clientId, domain, secretMountPath),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(resourceName, "project_id", projectId),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.bigquery.traceforce_schema", traceforceSchema),
+					resource.TestCheckResourceAttr(resourceName, "infrastructure.bigquery.traceforce_secure_views_schema", traceforceSecureViewsSchema),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.bigquery.events_subscription_name", eventsSubscription),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.salesforce.salesforce_client_id", clientId),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.salesforce.salesforce_domain", domain),
@@ -208,7 +212,7 @@ resource "traceforce_post_connection" "test" {
 }
 
 // testAccPostConnectionResourceConfigWithBigQuery returns configuration with BigQuery infrastructure.
-func testAccPostConnectionResourceConfigWithBigQuery(projectId, traceforceSchema, eventsSubscription string) string {
+func testAccPostConnectionResourceConfigWithBigQuery(projectId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription string) string {
 	return fmt.Sprintf(`
 %s
 
@@ -217,8 +221,9 @@ resource "traceforce_post_connection" "test" {
   
   infrastructure = {
     bigquery = {
-      traceforce_schema        = "%s"
-      events_subscription_name = "%s"
+      traceforce_schema               = "%s"
+      traceforce_secure_views_schema  = "%s"
+      events_subscription_name        = "%s"
     }
   }
   
@@ -228,7 +233,7 @@ resource "traceforce_post_connection" "test" {
   deployed_datalake_ids = ["datalake-1"]
   deployed_source_app_ids = []
 }
-`, providerConfig, projectId, traceforceSchema, eventsSubscription)
+`, providerConfig, projectId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription)
 }
 
 // testAccPostConnectionResourceConfigWithSalesforce returns configuration with Salesforce infrastructure.
@@ -257,7 +262,7 @@ resource "traceforce_post_connection" "test" {
 }
 
 // testAccPostConnectionResourceConfigWithBoth returns configuration with both BigQuery and Salesforce infrastructure.
-func testAccPostConnectionResourceConfigWithBoth(projectId, traceforceSchema, eventsSubscription, clientId, domain, secretMountPath string) string {
+func testAccPostConnectionResourceConfigWithBoth(projectId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription, clientId, domain, secretMountPath string) string {
 	return fmt.Sprintf(`
 %s
 
@@ -266,8 +271,9 @@ resource "traceforce_post_connection" "test" {
   
   infrastructure = {
     bigquery = {
-      traceforce_schema        = "%s"
-      events_subscription_name = "%s"
+      traceforce_schema               = "%s"
+      traceforce_secure_views_schema  = "%s"
+      events_subscription_name        = "%s"
     }
     
     salesforce = {
@@ -283,7 +289,7 @@ resource "traceforce_post_connection" "test" {
   deployed_datalake_ids = ["datalake-1", "datalake-2"]
   deployed_source_app_ids = ["source-app-1", "source-app-2"]
 }
-`, providerConfig, projectId, traceforceSchema, eventsSubscription, clientId, domain, secretMountPath)
+`, providerConfig, projectId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription, clientId, domain, secretMountPath)
 }
 
 // testAccPostConnectionResourceConfigWithBase returns configuration with base infrastructure.
