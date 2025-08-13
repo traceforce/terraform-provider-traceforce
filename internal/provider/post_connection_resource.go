@@ -48,8 +48,9 @@ type infrastructureModel struct {
 
 // bigqueryInfrastructureModel maps bigquery infrastructure schema data.
 type bigqueryInfrastructureModel struct {
-	TraceforceSchema       types.String `tfsdk:"traceforce_schema"`
-	EventsSubscriptionName types.String `tfsdk:"events_subscription_name"`
+	TraceforceSchema            types.String `tfsdk:"traceforce_schema"`
+	TraceforceSecureViewsSchema types.String `tfsdk:"traceforce_secure_views_schema"`
+	EventsSubscriptionName      types.String `tfsdk:"events_subscription_name"`
 }
 
 // salesforceInfrastructureModel maps salesforce infrastructure schema data.
@@ -140,6 +141,10 @@ func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequ
 						Attributes: map[string]schema.Attribute{
 							"traceforce_schema": schema.StringAttribute{
 								Description: "BigQuery dataset ID for TraceForce schema",
+								Required:    true,
+							},
+							"traceforce_secure_views_schema": schema.StringAttribute{
+								Description: "BigQuery dataset ID for TraceForce secure views schema",
 								Required:    true,
 							},
 							"events_subscription_name": schema.StringAttribute{
@@ -239,8 +244,9 @@ func (r *postConnectionResource) executePostConnection(ctx context.Context, plan
 	// Add BigQuery configuration if present
 	if plan.Infrastructure.BigQuery != nil {
 		postConnReq.Infrastructure.BigQuery = &traceforce.BigQueryInfrastructure{
-			TraceforceSchema:       plan.Infrastructure.BigQuery.TraceforceSchema.ValueString(),
-			EventsSubscriptionName: plan.Infrastructure.BigQuery.EventsSubscriptionName.ValueString(),
+			TraceforceSchema:            plan.Infrastructure.BigQuery.TraceforceSchema.ValueString(),
+			TraceforceSecureViewsSchema: plan.Infrastructure.BigQuery.TraceforceSecureViewsSchema.ValueString(),
+			EventsSubscriptionName:      plan.Infrastructure.BigQuery.EventsSubscriptionName.ValueString(),
 		}
 	}
 

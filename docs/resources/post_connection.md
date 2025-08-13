@@ -107,6 +107,7 @@ Required:
 
 - `events_subscription_name` (String) PubSub subscription name for BigQuery events
 - `traceforce_schema` (String) BigQuery dataset ID for TraceForce schema
+- `traceforce_secure_views_schema` (String) BigQuery dataset ID for TraceForce secure views schema
 
 
 <a id="nestedatt--infrastructure--salesforce"></a>
