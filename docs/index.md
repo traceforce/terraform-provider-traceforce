@@ -27,3 +27,4 @@ provider "traceforce" {
 
 - `api_key` (String) API key to the service
 - `endpoint` (String) Service endpoint
+- `extra_headers` (Map of String) Additional headers to include in API requests

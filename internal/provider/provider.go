@@ -35,8 +35,9 @@ type traceforceProvider struct {
 
 // traceforceProviderModel describes the provider data model.
 type traceforceProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"`
-	ApiKey   types.String `tfsdk:"api_key"`
+	Endpoint     types.String `tfsdk:"endpoint"`
+	ApiKey       types.String `tfsdk:"api_key"`
+	ExtraHeaders types.Map    `tfsdk:"extra_headers"`
 }
 
 func (p *traceforceProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -56,6 +57,12 @@ func (p *traceforceProvider) Schema(ctx context.Context, req provider.SchemaRequ
 				Description:         "URI for Traceforce API. May also be provided via TRACEFORCE_ENDPOINT environment variable.",
 				MarkdownDescription: "Service endpoint",
 				Optional:            true,
+			},
+			"extra_headers": schema.MapAttribute{
+				Description:         "Additional headers to include in API requests.",
+				MarkdownDescription: "Additional headers to include in API requests",
+				Optional:            true,
+				ElementType:         types.StringType,
 			},
 		},
 	}
@@ -133,7 +140,22 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 		return
 	}
 
-	client, err := traceforce.NewClient(apiKey, endpoint, nil)
+	// Handle extra headers
+	var extraHeaders map[string]string
+	if !config.ExtraHeaders.IsNull() && !config.ExtraHeaders.IsUnknown() {
+		extraHeaders = make(map[string]string)
+		for k, v := range config.ExtraHeaders.Elements() {
+			if strVal, ok := v.(types.String); ok && !strVal.IsNull() {
+				extraHeaders[k] = strVal.ValueString()
+			}
+		}
+	}
+
+	options := &traceforce.ClientOptions{
+		ExtraHeaders: extraHeaders,
+	}
+
+	client, err := traceforce.NewClient(apiKey, endpoint, options)
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create Traceforce API Client",
