@@ -32,11 +32,11 @@ type postConnectionResource struct {
 
 // baseInfrastructureModel maps base infrastructure schema data.
 type baseInfrastructureModel struct {
-	DataplaneIdentityIdentifier   types.String `tfsdk:"dataplane_identity_identifier"`
-	WorkloadIdentityProviderName  types.String `tfsdk:"workload_identity_provider_name"`
-	AuthViewGeneratorFunctionID   types.String `tfsdk:"auth_view_generator_function_id"`
-	AuthViewGeneratorFunctionURL  types.String `tfsdk:"auth_view_generator_function_url"`
-	TraceforceBucketName          types.String `tfsdk:"traceforce_bucket_name"`
+	DataplaneIdentityIdentifier  types.String `tfsdk:"dataplane_identity_identifier"`
+	WorkloadIdentityProviderName types.String `tfsdk:"workload_identity_provider_name"`
+	AuthViewGeneratorFunctionID  types.String `tfsdk:"auth_view_generator_function_id"`
+	AuthViewGeneratorFunctionURL types.String `tfsdk:"auth_view_generator_function_url"`
+	TraceforceBucketName         types.String `tfsdk:"traceforce_bucket_name"`
 }
 
 // infrastructureModel maps infrastructure schema data.
@@ -231,11 +231,11 @@ func (r *postConnectionResource) executePostConnection(ctx context.Context, plan
 	// Add Base configuration if present
 	if plan.Infrastructure.Base != nil {
 		baseInfra := &traceforce.BaseInfrastructure{
-			DataplaneIdentityIdentifier:   plan.Infrastructure.Base.DataplaneIdentityIdentifier.ValueString(),
-			WorkloadIdentityProviderName:  plan.Infrastructure.Base.WorkloadIdentityProviderName.ValueString(),
-			AuthViewGeneratorFunctionID:   plan.Infrastructure.Base.AuthViewGeneratorFunctionID.ValueString(),
-			AuthViewGeneratorFunctionURL:  plan.Infrastructure.Base.AuthViewGeneratorFunctionURL.ValueString(),
-			TraceforceBucketName:          plan.Infrastructure.Base.TraceforceBucketName.ValueString(),
+			DataplaneIdentityIdentifier:  plan.Infrastructure.Base.DataplaneIdentityIdentifier.ValueString(),
+			WorkloadIdentityProviderName: plan.Infrastructure.Base.WorkloadIdentityProviderName.ValueString(),
+			AuthViewGeneratorFunctionID:  plan.Infrastructure.Base.AuthViewGeneratorFunctionID.ValueString(),
+			AuthViewGeneratorFunctionURL: plan.Infrastructure.Base.AuthViewGeneratorFunctionURL.ValueString(),
+			TraceforceBucketName:         plan.Infrastructure.Base.TraceforceBucketName.ValueString(),
 		}
 
 		postConnReq.Infrastructure.Base = baseInfra
