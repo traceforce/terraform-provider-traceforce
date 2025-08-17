@@ -66,7 +66,6 @@ type postConnectionResourceModel struct {
 	Infrastructure                 infrastructureModel `tfsdk:"infrastructure"`
 	TerraformURL                   types.String        `tfsdk:"terraform_url"`
 	TerraformModuleVersions        types.String        `tfsdk:"terraform_module_versions"`
-	TerraformModuleVersionsHash    types.String        `tfsdk:"terraform_module_versions_hash"`
 	DeployedDatalakeIds            types.List          `tfsdk:"deployed_datalake_ids"`
 	DeployedSourceAppIds           types.List          `tfsdk:"deployed_source_app_ids"`
 }
@@ -181,10 +180,6 @@ func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequ
 				Description: "JSON string containing Terraform module versions",
 				Required:    true,
 			},
-			"terraform_module_versions_hash": schema.StringAttribute{
-				Description: "Hash of the Terraform module versions for integrity verification",
-				Required:    true,
-			},
 			"deployed_datalake_ids": schema.ListAttribute{
 				Description: "List of datalake IDs that were deployed by terraform",
 				Required:    true,
@@ -262,7 +257,6 @@ func (r *postConnectionResource) executePostConnection(ctx context.Context, plan
 	// Add terraform metadata
 	postConnReq.TerraformURL = plan.TerraformURL.ValueString()
 	postConnReq.TerraformModuleVersions = plan.TerraformModuleVersions.ValueString()
-	postConnReq.TerraformModuleVersionsHash = plan.TerraformModuleVersionsHash.ValueString()
 
 	// Add deployed resource IDs
 	diags := plan.DeployedDatalakeIds.ElementsAs(ctx, &postConnReq.DeployedDatalakeIds, false)
