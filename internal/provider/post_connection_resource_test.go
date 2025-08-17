@@ -13,7 +13,7 @@ import (
 
 func TestAccPostConnectionResource(t *testing.T) {
 	// Generate unique names with Z prefix for parallel execution
-	projectId := "z-project-" + uuid.New().String()
+	hostingEnvironmentId := "z-project-" + uuid.New().String()
 	resourceName := "traceforce_post_connection.test"
 
 	resource.Test(t, resource.TestCase{
@@ -22,9 +22,9 @@ func TestAccPostConnectionResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing - basic post connection
 			{
-				Config: testAccPostConnectionResourceConfig(projectId),
+				Config: testAccPostConnectionResourceConfig(hostingEnvironmentId),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "project_id", projectId),
+					resource.TestCheckResourceAttr(resourceName, "traceforce_hosting_environment_id", hostingEnvironmentId),
 					resource.TestCheckResourceAttrSet(resourceName, "id"),
 					resource.TestCheckResourceAttrSet(resourceName, "status"),
 					resource.TestCheckResourceAttrSet(resourceName, "created_at"),
@@ -43,7 +43,7 @@ func TestAccPostConnectionResource(t *testing.T) {
 
 func TestAccPostConnectionResourceWithBigQuery(t *testing.T) {
 	// Generate unique names with Z prefix for parallel execution
-	projectId := "z-project-" + uuid.New().String()
+	hostingEnvironmentId := "z-project-" + uuid.New().String()
 	resourceName := "traceforce_post_connection.test"
 	traceforceSchema := "z_traceforce_dataset_" + uuid.New().String()
 	traceforceSecureViewsSchema := "z_traceforce_secure_views_dataset_" + uuid.New().String()
@@ -55,9 +55,9 @@ func TestAccPostConnectionResourceWithBigQuery(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing - with BigQuery configuration
 			{
-				Config: testAccPostConnectionResourceConfigWithBigQuery(projectId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription),
+				Config: testAccPostConnectionResourceConfigWithBigQuery(hostingEnvironmentId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "project_id", projectId),
+					resource.TestCheckResourceAttr(resourceName, "traceforce_hosting_environment_id", hostingEnvironmentId),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.bigquery.traceforce_schema", traceforceSchema),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.bigquery.traceforce_secure_views_schema", traceforceSecureViewsSchema),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.bigquery.events_subscription_name", eventsSubscription),
@@ -79,7 +79,7 @@ func TestAccPostConnectionResourceWithBigQuery(t *testing.T) {
 
 func TestAccPostConnectionResourceWithSalesforce(t *testing.T) {
 	// Generate unique names with Z prefix for parallel execution
-	projectId := "z-project-" + uuid.New().String()
+	hostingEnvironmentId := "z-project-" + uuid.New().String()
 	resourceName := "traceforce_post_connection.test"
 	clientId := "test_client_id_" + uuid.New().String()
 	domain := "test-domain-" + uuid.New().String() + ".my.salesforce.com"
@@ -91,9 +91,9 @@ func TestAccPostConnectionResourceWithSalesforce(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing - with Salesforce configuration
 			{
-				Config: testAccPostConnectionResourceConfigWithSalesforce(projectId, clientId, domain, secretMountPath),
+				Config: testAccPostConnectionResourceConfigWithSalesforce(hostingEnvironmentId, clientId, domain, secretMountPath),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "project_id", projectId),
+					resource.TestCheckResourceAttr(resourceName, "traceforce_hosting_environment_id", hostingEnvironmentId),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.salesforce.salesforce_client_id", clientId),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.salesforce.salesforce_domain", domain),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.salesforce.salesforce_client_secret", secretMountPath),
@@ -115,7 +115,7 @@ func TestAccPostConnectionResourceWithSalesforce(t *testing.T) {
 
 func TestAccPostConnectionResourceWithBoth(t *testing.T) {
 	// Generate unique names with Z prefix for parallel execution
-	projectId := "z-project-" + uuid.New().String()
+	hostingEnvironmentId := "z-project-" + uuid.New().String()
 	resourceName := "traceforce_post_connection.test"
 	traceforceSchema := "z_traceforce_dataset_" + uuid.New().String()
 	traceforceSecureViewsSchema := "z_traceforce_secure_views_dataset_" + uuid.New().String()
@@ -130,9 +130,9 @@ func TestAccPostConnectionResourceWithBoth(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing - with both BigQuery and Salesforce configuration
 			{
-				Config: testAccPostConnectionResourceConfigWithBoth(projectId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription, clientId, domain, secretMountPath),
+				Config: testAccPostConnectionResourceConfigWithBoth(hostingEnvironmentId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription, clientId, domain, secretMountPath),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "project_id", projectId),
+					resource.TestCheckResourceAttr(resourceName, "traceforce_hosting_environment_id", hostingEnvironmentId),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.bigquery.traceforce_schema", traceforceSchema),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.bigquery.traceforce_secure_views_schema", traceforceSecureViewsSchema),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.bigquery.events_subscription_name", eventsSubscription),
@@ -157,7 +157,7 @@ func TestAccPostConnectionResourceWithBoth(t *testing.T) {
 
 func TestAccPostConnectionResourceWithBase(t *testing.T) {
 	// Generate unique names with Z prefix for parallel execution
-	projectId := "z-project-" + uuid.New().String()
+	hostingEnvironmentId := "z-project-" + uuid.New().String()
 	resourceName := "traceforce_post_connection.test"
 	dataplaneIdentifier := "z-dataplane-" + uuid.New().String()
 
@@ -167,12 +167,12 @@ func TestAccPostConnectionResourceWithBase(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Create and Read testing - with base infrastructure configuration
 			{
-				Config: testAccPostConnectionResourceConfigWithBase(projectId, dataplaneIdentifier),
+				Config: testAccPostConnectionResourceConfigWithBase(hostingEnvironmentId, dataplaneIdentifier),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr(resourceName, "project_id", projectId),
+					resource.TestCheckResourceAttr(resourceName, "traceforce_hosting_environment_id", hostingEnvironmentId),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.base.dataplane_identity_identifier", dataplaneIdentifier),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.base.workload_identity_provider_name", "projects/123/locations/global/workloadIdentityPools/test-pool/providers/test-provider"),
-					resource.TestCheckResourceAttr(resourceName, "infrastructure.base.auth_view_generator_function_name", "test-auth-view-generator-function"),
+					resource.TestCheckResourceAttr(resourceName, "infrastructure.base.auth_view_generator_function_id", "test-auth-view-generator-function"),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.base.auth_view_generator_function_url", "https://test-function-url.cloudfunctions.net/auth-view-generator"),
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.base.traceforce_bucket_name", "test-traceforce-bucket"),
 					resource.TestCheckResourceAttrSet(resourceName, "terraform_url"),
@@ -191,12 +191,12 @@ func TestAccPostConnectionResourceWithBase(t *testing.T) {
 }
 
 // testAccPostConnectionResourceConfig returns a basic configuration for post_connection resource.
-func testAccPostConnectionResourceConfig(projectId string) string {
+func testAccPostConnectionResourceConfig(hostingEnvironmentId string) string {
 	return fmt.Sprintf(`
 %s
 
 resource "traceforce_post_connection" "test" {
-  project_id = "%s"
+  traceforce_hosting_environment_id = "%s"
   
   infrastructure = {
     # Empty infrastructure for basic setup
@@ -208,16 +208,16 @@ resource "traceforce_post_connection" "test" {
   deployed_datalake_ids = []
   deployed_source_app_ids = []
 }
-`, providerConfig, projectId)
+`, providerConfig, hostingEnvironmentId)
 }
 
 // testAccPostConnectionResourceConfigWithBigQuery returns configuration with BigQuery infrastructure.
-func testAccPostConnectionResourceConfigWithBigQuery(projectId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription string) string {
+func testAccPostConnectionResourceConfigWithBigQuery(hostingEnvironmentId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription string) string {
 	return fmt.Sprintf(`
 %s
 
 resource "traceforce_post_connection" "test" {
-  project_id = "%s"
+  traceforce_hosting_environment_id = "%s"
   
   infrastructure = {
     bigquery = {
@@ -233,16 +233,16 @@ resource "traceforce_post_connection" "test" {
   deployed_datalake_ids = ["datalake-1"]
   deployed_source_app_ids = []
 }
-`, providerConfig, projectId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription)
+`, providerConfig, hostingEnvironmentId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription)
 }
 
 // testAccPostConnectionResourceConfigWithSalesforce returns configuration with Salesforce infrastructure.
-func testAccPostConnectionResourceConfigWithSalesforce(projectId, clientId, domain, secretMountPath string) string {
+func testAccPostConnectionResourceConfigWithSalesforce(hostingEnvironmentId, clientId, domain, secretMountPath string) string {
 	return fmt.Sprintf(`
 %s
 
 resource "traceforce_post_connection" "test" {
-  project_id = "%s"
+  traceforce_hosting_environment_id = "%s"
   
   infrastructure = {
     salesforce = {
@@ -258,16 +258,16 @@ resource "traceforce_post_connection" "test" {
   deployed_datalake_ids = []
   deployed_source_app_ids = ["source-app-1"]
 }
-`, providerConfig, projectId, clientId, domain, secretMountPath)
+`, providerConfig, hostingEnvironmentId, clientId, domain, secretMountPath)
 }
 
 // testAccPostConnectionResourceConfigWithBoth returns configuration with both BigQuery and Salesforce infrastructure.
-func testAccPostConnectionResourceConfigWithBoth(projectId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription, clientId, domain, secretMountPath string) string {
+func testAccPostConnectionResourceConfigWithBoth(hostingEnvironmentId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription, clientId, domain, secretMountPath string) string {
 	return fmt.Sprintf(`
 %s
 
 resource "traceforce_post_connection" "test" {
-  project_id = "%s"
+  traceforce_hosting_environment_id = "%s"
   
   infrastructure = {
     bigquery = {
@@ -289,22 +289,22 @@ resource "traceforce_post_connection" "test" {
   deployed_datalake_ids = ["datalake-1", "datalake-2"]
   deployed_source_app_ids = ["source-app-1", "source-app-2"]
 }
-`, providerConfig, projectId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription, clientId, domain, secretMountPath)
+`, providerConfig, hostingEnvironmentId, traceforceSchema, traceforceSecureViewsSchema, eventsSubscription, clientId, domain, secretMountPath)
 }
 
 // testAccPostConnectionResourceConfigWithBase returns configuration with base infrastructure.
-func testAccPostConnectionResourceConfigWithBase(projectId, dataplaneIdentifier string) string {
+func testAccPostConnectionResourceConfigWithBase(hostingEnvironmentId, dataplaneIdentifier string) string {
 	return fmt.Sprintf(`
 %s
 
 resource "traceforce_post_connection" "test" {
-  project_id = "%s"
+  traceforce_hosting_environment_id = "%s"
   
   infrastructure = {
     base = {
       dataplane_identity_identifier = "%s"
       workload_identity_provider_name = "projects/123/locations/global/workloadIdentityPools/test-pool/providers/test-provider"
-      auth_view_generator_function_name = "test-auth-view-generator-function"
+      auth_view_generator_function_id = "test-auth-view-generator-function"
       auth_view_generator_function_url = "https://test-function-url.cloudfunctions.net/auth-view-generator"
       traceforce_bucket_name = "test-traceforce-bucket"
     }
@@ -316,5 +316,5 @@ resource "traceforce_post_connection" "test" {
   deployed_datalake_ids = []
   deployed_source_app_ids = []
 }
-`, providerConfig, projectId, dataplaneIdentifier)
+`, providerConfig, hostingEnvironmentId, dataplaneIdentifier)
 }

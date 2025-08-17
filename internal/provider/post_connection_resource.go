@@ -34,7 +34,7 @@ type postConnectionResource struct {
 type baseInfrastructureModel struct {
 	DataplaneIdentityIdentifier   types.String `tfsdk:"dataplane_identity_identifier"`
 	WorkloadIdentityProviderName  types.String `tfsdk:"workload_identity_provider_name"`
-	AuthViewGeneratorFunctionName types.String `tfsdk:"auth_view_generator_function_name"`
+	AuthViewGeneratorFunctionID   types.String `tfsdk:"auth_view_generator_function_id"`
 	AuthViewGeneratorFunctionURL  types.String `tfsdk:"auth_view_generator_function_url"`
 	TraceforceBucketName          types.String `tfsdk:"traceforce_bucket_name"`
 }
@@ -62,13 +62,13 @@ type salesforceInfrastructureModel struct {
 
 // postConnectionResourceModel maps post_connection schema data.
 type postConnectionResourceModel struct {
-	ProjectId                   types.String        `tfsdk:"project_id"`
-	Infrastructure              infrastructureModel `tfsdk:"infrastructure"`
-	TerraformURL                types.String        `tfsdk:"terraform_url"`
-	TerraformModuleVersions     types.String        `tfsdk:"terraform_module_versions"`
-	TerraformModuleVersionsHash types.String        `tfsdk:"terraform_module_versions_hash"`
-	DeployedDatalakeIds         types.List          `tfsdk:"deployed_datalake_ids"`
-	DeployedSourceAppIds        types.List          `tfsdk:"deployed_source_app_ids"`
+	TraceforceHostingEnvironmentId types.String        `tfsdk:"traceforce_hosting_environment_id"`
+	Infrastructure                 infrastructureModel `tfsdk:"infrastructure"`
+	TerraformURL                   types.String        `tfsdk:"terraform_url"`
+	TerraformModuleVersions        types.String        `tfsdk:"terraform_module_versions"`
+	TerraformModuleVersionsHash    types.String        `tfsdk:"terraform_module_versions_hash"`
+	DeployedDatalakeIds            types.List          `tfsdk:"deployed_datalake_ids"`
+	DeployedSourceAppIds           types.List          `tfsdk:"deployed_source_app_ids"`
 }
 
 // Metadata returns the resource type name.
@@ -101,8 +101,8 @@ func (r *postConnectionResource) Configure(ctx context.Context, req resource.Con
 func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Attributes: map[string]schema.Attribute{
-			"project_id": schema.StringAttribute{
-				Description: "ID of the project in TraceForce to post-connect.",
+			"traceforce_hosting_environment_id": schema.StringAttribute{
+				Description: "ID of the TraceForce hosting environment to post-connect.",
 				Required:    true,
 			},
 			"infrastructure": schema.SingleNestedAttribute{
@@ -121,12 +121,12 @@ func (r *postConnectionResource) Schema(_ context.Context, _ resource.SchemaRequ
 								Description: "Workload identity provider name for external authentication",
 								Required:    true,
 							},
-							"auth_view_generator_function_name": schema.StringAttribute{
-								Description: "Auth view generator Cloud Function name",
+							"auth_view_generator_function_id": schema.StringAttribute{
+								Description: "Auth view generator function ID",
 								Required:    true,
 							},
 							"auth_view_generator_function_url": schema.StringAttribute{
-								Description: "Auth view generator Cloud Function URL",
+								Description: "Auth view generator function URL",
 								Required:    true,
 							},
 							"traceforce_bucket_name": schema.StringAttribute{
@@ -233,7 +233,7 @@ func (r *postConnectionResource) executePostConnection(ctx context.Context, plan
 		baseInfra := &traceforce.BaseInfrastructure{
 			DataplaneIdentityIdentifier:   plan.Infrastructure.Base.DataplaneIdentityIdentifier.ValueString(),
 			WorkloadIdentityProviderName:  plan.Infrastructure.Base.WorkloadIdentityProviderName.ValueString(),
-			AuthViewGeneratorFunctionName: plan.Infrastructure.Base.AuthViewGeneratorFunctionName.ValueString(),
+			AuthViewGeneratorFunctionID:   plan.Infrastructure.Base.AuthViewGeneratorFunctionID.ValueString(),
 			AuthViewGeneratorFunctionURL:  plan.Infrastructure.Base.AuthViewGeneratorFunctionURL.ValueString(),
 			TraceforceBucketName:          plan.Infrastructure.Base.TraceforceBucketName.ValueString(),
 		}
@@ -275,8 +275,8 @@ func (r *postConnectionResource) executePostConnection(ctx context.Context, plan
 		return fmt.Errorf("failed to extract deployed source app IDs: %v", diags)
 	}
 
-	// Execute post-connection process using the project ID and structured request
-	err := r.client.PostConnection(plan.ProjectId.ValueString(), postConnReq)
+	// Execute post-connection process using the hosting environment ID and structured request
+	err := r.client.PostConnection(plan.TraceforceHostingEnvironmentId.ValueString(), postConnReq)
 
 	return err
 }

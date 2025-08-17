@@ -14,15 +14,15 @@ description: |-
 
 ```terraform
 resource "traceforce_post_connection" "example" {
-  project_id = traceforce_project.example.id
+  traceforce_hosting_environment_id = traceforce_hosting_environment.example.id
 
   infrastructure = {
     base = {
-      dataplane_identity_identifier     = "dataplane-identity-12345"
-      workload_identity_provider_name   = "projects/123/locations/global/workloadIdentityPools/traceforce-pool/providers/control-plane-aws"
-      auth_view_generator_function_name = "auth-view-generator-function"
-      auth_view_generator_function_url  = "https://us-central1-example-project.cloudfunctions.net/auth-view-generator"
-      traceforce_bucket_name            = "traceforce-bucket"
+      dataplane_identity_identifier    = "dataplane-identity-12345"
+      workload_identity_provider_name  = "projects/123/locations/global/workloadIdentityPools/traceforce-pool/providers/control-plane-aws"
+      auth_view_generator_function_id  = "auth-view-generator-function"
+      auth_view_generator_function_url = "https://us-central1-example-project.cloudfunctions.net/auth-view-generator"
+      traceforce_bucket_name           = "traceforce-bucket"
     }
 
     bigquery = {
@@ -62,7 +62,7 @@ resource "traceforce_post_connection" "example" {
   deployed_datalake_ids          = ["datalake-abc123"]
   deployed_source_app_ids        = ["sourceapp-def456"]
 
-  depends_on = [traceforce_project.example]
+  depends_on = [traceforce_hosting_environment.example]
 }
 ```
 
@@ -74,10 +74,10 @@ resource "traceforce_post_connection" "example" {
 - `deployed_datalake_ids` (List of String) List of datalake IDs that were deployed by terraform
 - `deployed_source_app_ids` (List of String) List of source app IDs that were deployed by terraform
 - `infrastructure` (Attributes) Infrastructure configuration for deployment (see [below for nested schema](#nestedatt--infrastructure))
-- `project_id` (String) ID of the project in TraceForce to post-connect.
 - `terraform_module_versions` (String) JSON string containing Terraform module versions
 - `terraform_module_versions_hash` (String) Hash of the Terraform module versions for integrity verification
 - `terraform_url` (String) URL of the Terraform module repository
+- `traceforce_hosting_environment_id` (String) ID of the TraceForce hosting environment to post-connect.
 
 <a id="nestedatt--infrastructure"></a>
 ### Nested Schema for `infrastructure`
@@ -93,8 +93,8 @@ Optional:
 
 Required:
 
-- `auth_view_generator_function_name` (String) Auth view generator Cloud Function name
-- `auth_view_generator_function_url` (String) Auth view generator Cloud Function URL
+- `auth_view_generator_function_id` (String) Auth view generator function ID
+- `auth_view_generator_function_url` (String) Auth view generator function URL
 - `dataplane_identity_identifier` (String) Dataplane identity identifier for base infrastructure
 - `traceforce_bucket_name` (String) TraceForce bucket name for artifact storage
 - `workload_identity_provider_name` (String) Workload identity provider name for external authentication
