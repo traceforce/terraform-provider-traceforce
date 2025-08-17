@@ -1,13 +1,13 @@
 resource "traceforce_post_connection" "example" {
-  project_id = traceforce_project.example.id
+  traceforce_hosting_environment_id = traceforce_hosting_environment.example.id
 
   infrastructure = {
     base = {
-      dataplane_identity_identifier     = "dataplane-identity-12345"
-      workload_identity_provider_name   = "projects/123/locations/global/workloadIdentityPools/traceforce-pool/providers/control-plane-aws"
-      auth_view_generator_function_name = "auth-view-generator-function"
-      auth_view_generator_function_url  = "https://us-central1-example-project.cloudfunctions.net/auth-view-generator"
-      traceforce_bucket_name            = "traceforce-bucket"
+      dataplane_identity_identifier    = "dataplane-identity-12345"
+      workload_identity_provider_name  = "projects/123/locations/global/workloadIdentityPools/traceforce-pool/providers/control-plane-aws"
+      auth_view_generator_function_id  = "auth-view-generator-function"
+      auth_view_generator_function_url = "https://us-central1-example-project.cloudfunctions.net/auth-view-generator"
+      traceforce_bucket_name           = "traceforce-bucket"
     }
 
     bigquery = {
@@ -47,5 +47,5 @@ resource "traceforce_post_connection" "example" {
   deployed_datalake_ids          = ["datalake-abc123"]
   deployed_source_app_ids        = ["sourceapp-def456"]
 
-  depends_on = [traceforce_project.example]
+  depends_on = [traceforce_hosting_environment.example]
 }
