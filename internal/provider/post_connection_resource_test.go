@@ -177,7 +177,6 @@ func TestAccPostConnectionResourceWithBase(t *testing.T) {
 					resource.TestCheckResourceAttr(resourceName, "infrastructure.base.traceforce_bucket_name", "test-traceforce-bucket"),
 					resource.TestCheckResourceAttrSet(resourceName, "terraform_url"),
 					resource.TestCheckResourceAttrSet(resourceName, "terraform_module_versions"),
-					resource.TestCheckResourceAttrSet(resourceName, "terraform_module_versions_hash"),
 				),
 			},
 			// Import State testing
@@ -204,7 +203,6 @@ resource "traceforce_post_connection" "test" {
   
   terraform_url = "https://github.com/traceforce/terraform-modules"
   terraform_module_versions = "{\"base\": \"v1.0.0\"}"
-  terraform_module_versions_hash = "abc123def456"
   deployed_datalake_ids = []
   deployed_source_app_ids = []
 }
@@ -229,7 +227,6 @@ resource "traceforce_post_connection" "test" {
   
   terraform_url = "https://github.com/traceforce/terraform-modules"
   terraform_module_versions = "{\"bigquery\": \"v1.0.0\"}"
-  terraform_module_versions_hash = "def456ghi789"
   deployed_datalake_ids = ["datalake-1"]
   deployed_source_app_ids = []
 }
@@ -254,7 +251,6 @@ resource "traceforce_post_connection" "test" {
   
   terraform_url = "https://github.com/traceforce/terraform-modules"
   terraform_module_versions = "{\"salesforce\": \"v1.0.0\"}"
-  terraform_module_versions_hash = "ghi789jkl012"
   deployed_datalake_ids = []
   deployed_source_app_ids = ["source-app-1"]
 }
@@ -285,7 +281,6 @@ resource "traceforce_post_connection" "test" {
   
   terraform_url = "https://github.com/traceforce/terraform-modules"
   terraform_module_versions = "{\"bigquery\": \"v1.0.0\", \"salesforce\": \"v1.0.0\"}"
-  terraform_module_versions_hash = "jkl012mno345"
   deployed_datalake_ids = ["datalake-1", "datalake-2"]
   deployed_source_app_ids = ["source-app-1", "source-app-2"]
 }
@@ -312,7 +307,6 @@ resource "traceforce_post_connection" "test" {
   
   terraform_url = "https://github.com/traceforce/terraform-modules"
   terraform_module_versions = "{\"base\": \"v1.0.0\"}"
-  terraform_module_versions_hash = "abc123def456"
   deployed_datalake_ids = []
   deployed_source_app_ids = []
 }

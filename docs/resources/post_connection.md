@@ -37,8 +37,8 @@ resource "traceforce_post_connection" "example" {
     }
   }
 
-  terraform_url                  = "https://github.com/traceforce/terraform-modules"
-  terraform_module_versions      = <<-EOT
+  terraform_url             = "https://github.com/traceforce/terraform-modules"
+  terraform_module_versions = <<-EOT
   {
     "base_infrastructure": {
       "major": 1,
@@ -58,9 +58,8 @@ resource "traceforce_post_connection" "example" {
     }
   }
   EOT
-  terraform_module_versions_hash = "sha256:abcdef123456..."
-  deployed_datalake_ids          = ["datalake-abc123"]
-  deployed_source_app_ids        = ["sourceapp-def456"]
+  deployed_datalake_ids     = ["datalake-abc123"]
+  deployed_source_app_ids   = ["sourceapp-def456"]
 
   depends_on = [traceforce_hosting_environment.example]
 }
@@ -75,7 +74,6 @@ resource "traceforce_post_connection" "example" {
 - `deployed_source_app_ids` (List of String) List of source app IDs that were deployed by terraform
 - `infrastructure` (Attributes) Infrastructure configuration for deployment (see [below for nested schema](#nestedatt--infrastructure))
 - `terraform_module_versions` (String) JSON string containing Terraform module versions
-- `terraform_module_versions_hash` (String) Hash of the Terraform module versions for integrity verification
 - `terraform_url` (String) URL of the Terraform module repository
 - `traceforce_hosting_environment_id` (String) ID of the TraceForce hosting environment to post-connect.
 

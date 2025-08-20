@@ -22,8 +22,8 @@ resource "traceforce_post_connection" "example" {
     }
   }
 
-  terraform_url                  = "https://github.com/traceforce/terraform-modules"
-  terraform_module_versions      = <<-EOT
+  terraform_url             = "https://github.com/traceforce/terraform-modules"
+  terraform_module_versions = <<-EOT
   {
     "base_infrastructure": {
       "major": 1,
@@ -43,9 +43,8 @@ resource "traceforce_post_connection" "example" {
     }
   }
   EOT
-  terraform_module_versions_hash = "sha256:abcdef123456..."
-  deployed_datalake_ids          = ["datalake-abc123"]
-  deployed_source_app_ids        = ["sourceapp-def456"]
+  deployed_datalake_ids     = ["datalake-abc123"]
+  deployed_source_app_ids   = ["sourceapp-def456"]
 
   depends_on = [traceforce_hosting_environment.example]
 }
