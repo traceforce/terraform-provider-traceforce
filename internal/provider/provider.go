@@ -10,6 +10,7 @@ import (
 	traceforce "github.com/traceforce/traceforce-go-sdk"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/ephemeral"
 	"github.com/hashicorp/terraform-plugin-framework/function"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -37,6 +38,9 @@ type traceforceProvider struct {
 type traceforceProviderModel struct {
 	Endpoint     types.String `tfsdk:"endpoint"`
 	ApiKey       types.String `tfsdk:"api_key"`
+	ClientID     types.String `tfsdk:"client_id"`
+	ClientSecret types.String `tfsdk:"client_secret"`
+	DeviceID     types.String `tfsdk:"device_id"`
 	ExtraHeaders types.Map    `tfsdk:"extra_headers"`
 }
 
@@ -51,6 +55,23 @@ func (p *traceforceProvider) Schema(ctx context.Context, req provider.SchemaRequ
 			"api_key": schema.StringAttribute{
 				Description:         "API key to the service. May also be provided via TRACEFORCE_API_KEY environment variable.",
 				MarkdownDescription: "API key to the service",
+				Optional:            true,
+			},
+			"client_id": schema.StringAttribute{
+				Description:         "Client ID of one of your Traceforce API clients (Settings → API Clients), used instead of api_key. May also be provided via TRACEFORCE_CLIENT_ID environment variable.",
+				MarkdownDescription: "Client ID of an API client, used instead of `api_key`",
+				Optional:            true,
+				Sensitive:           true,
+			},
+			"client_secret": schema.StringAttribute{
+				Description:         "Client secret of that API client. May also be provided via TRACEFORCE_CLIENT_SECRET environment variable.",
+				MarkdownDescription: "Client secret of that API client",
+				Optional:            true,
+				Sensitive:           true,
+			},
+			"device_id": schema.StringAttribute{
+				Description:         "Who the token is for when logging in with client_id, e.g. cloud-collector-aws. May also be provided via TRACEFORCE_DEVICE_ID environment variable.",
+				MarkdownDescription: "Who the token is for when logging in with `client_id`, e.g. `cloud-collector-aws`",
 				Optional:            true,
 			},
 			"endpoint": schema.StringAttribute{
@@ -116,6 +137,23 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 		apiKey = config.ApiKey.ValueString()
 	}
 
+	// Log in with an API client instead of api_key (the cloud collector's Terraform).
+	clientID := os.Getenv("TRACEFORCE_CLIENT_ID")
+	clientSecret := os.Getenv("TRACEFORCE_CLIENT_SECRET")
+	deviceID := os.Getenv("TRACEFORCE_DEVICE_ID")
+
+	if !config.ClientID.IsNull() && config.ClientID.ValueString() != "" {
+		clientID = config.ClientID.ValueString()
+	}
+
+	if !config.ClientSecret.IsNull() && config.ClientSecret.ValueString() != "" {
+		clientSecret = config.ClientSecret.ValueString()
+	}
+
+	if !config.DeviceID.IsNull() && config.DeviceID.ValueString() != "" {
+		deviceID = config.DeviceID.ValueString()
+	}
+
 	// If any of the expected configurations are missing, return
 	// errors with provider-specific guidance.
 
@@ -126,13 +164,22 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 		)
 	}
 
-	if apiKey == "" {
+	if apiKey == "" && clientID == "" {
 		resp.Diagnostics.AddAttributeError(
 			path.Root("apiKey"),
 			"Missing Traceforce API key",
 			"The provider cannot create the Traceforce API client as there is a missing or empty value for the Traceforce API key. "+
-				"Set the apiKey value in the configuration or use the TRACEFORCE_API_KEY environment variable. "+
+				"Set the apiKey value in the configuration or use the TRACEFORCE_API_KEY environment variable, "+
+				"or log in with client_id and client_secret (TRACEFORCE_CLIENT_ID, TRACEFORCE_CLIENT_SECRET). "+
 				"If either is already set, ensure the value is not empty.",
+		)
+	}
+
+	if clientID != "" && clientSecret == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("client_secret"),
+			"Missing Traceforce client secret",
+			"client_id is set, so client_secret (or the TRACEFORCE_CLIENT_SECRET environment variable) is needed too.",
 		)
 	}
 
@@ -155,7 +202,14 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 		ExtraHeaders: extraHeaders,
 	}
 
-	client, err := traceforce.NewClient(apiKey, endpoint, options)
+	// API client login when client_id is given, else the api_key as before.
+	var client *traceforce.Client
+	var err error
+	if clientID != "" {
+		client, err = traceforce.NewClientWithCredentials(clientID, clientSecret, deviceID, endpoint, options)
+	} else {
+		client, err = traceforce.NewClient(apiKey, endpoint, options)
+	}
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Unable to Create Traceforce API Client",
@@ -179,6 +233,7 @@ func (p *traceforceProvider) Resources(ctx context.Context) []func() resource.Re
 		NewSourceAppResource,
 		NewPostConnectionResource,
 		NewSourceAppDatalakeLinkResource,
+		NewCloudConnectionResource,
 	}
 }
 
@@ -196,6 +251,22 @@ func (p *traceforceProvider) DataSources(ctx context.Context) []func() datasourc
 
 func (p *traceforceProvider) Functions(ctx context.Context) []func() function.Function {
 	return []func() function.Function{}
+}
+
+// clientFrom gives a resource the logged-in API client that the provider's
+// Configure made (resp.ResourceData = client, above). Terraform hands it to each
+// resource's Configure as req.ProviderData. It is nil on the first call, before
+// the provider is configured; anything other than a *traceforce.Client is an error.
+func clientFrom(data any, diags *diag.Diagnostics) *traceforce.Client {
+	if data == nil {
+		return nil
+	}
+	client, ok := data.(*traceforce.Client)
+	if !ok {
+		diags.AddError("Unexpected Provider Configuration",
+			"An error occurred while configuring the provider. Please contact support if this persists.")
+	}
+	return client
 }
 
 func New(version string) func() provider.Provider {
