@@ -70,6 +70,9 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 		reply(w, 404, map[string]string{"error": "Connection not found"})
 	case r.Method == http.MethodGet && path == conn:
 		reply(w, 200, f.row)
+	case r.Method == http.MethodPut && path == conn+"/deployment":
+		f.row["collector_id"], f.row["deployed_at"] = body["collectorId"], "2026-10-30T10:00:00Z"
+		reply(w, 200, map[string]bool{"deployed": true})
 	case r.Method == http.MethodDelete && path == conn:
 		f.deletes++
 		f.row = nil
@@ -79,7 +82,7 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// collectorConfig is the provider block and the connection, as the collector Terraform uses them.
+// collectorConfig is the provider block and both resources, as the collector Terraform uses them.
 func collectorConfig(endpoint, version string) string {
 	return fmt.Sprintf(`
 provider "traceforce" {
@@ -95,6 +98,13 @@ resource "traceforce_cloud_connection" "test" {
   name           = "Test"
   module_version = %q
 }
+
+resource "traceforce_cloud_connection_deployment" "test" {
+  connection_id = traceforce_cloud_connection.test.id
+  collector_id  = "arn:aws:lambda:us-east-1:111111111111:function:C"
+  identity_id   = "arn:aws:iam::111111111111:role/R"
+  regions       = ["us-east-1"]
+}
 `, endpoint, version)
 }
 
@@ -108,6 +118,7 @@ func TestAccCloudConnectionLifecycle(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("traceforce_cloud_connection.test", "id", fakeConnID),
 					resource.TestCheckResourceAttr("traceforce_cloud_connection.test", "status", "1"),
+					resource.TestCheckResourceAttr("traceforce_cloud_connection_deployment.test", "deployed_at", "2026-10-30T10:00:00Z"),
 					func(*terraform.State) error {
 						f.mu.Lock()
 						defer f.mu.Unlock()
@@ -128,7 +139,7 @@ func TestAccCloudConnectionLifecycle(t *testing.T) {
 				),
 			},
 		},
-		// Destroy: the connection is disconnected once.
+		// Destroy: the connection is disconnected once; the deployment makes no call.
 		CheckDestroy: func(*terraform.State) error {
 			f.mu.Lock()
 			defer f.mu.Unlock()
@@ -147,7 +158,7 @@ func TestAccCloudConnectionGoneIsRecreated(t *testing.T) {
 		Steps: []resource.TestStep{
 			{Config: collectorConfig(endpoint, "1.2.0")},
 			{
-				// Disconnected in Settings: GET answers 404, so the next apply registers it again.
+				// Disconnected in Settings: GET answers 404, so the next apply registers again.
 				PreConfig:          func() { f.mu.Lock(); f.row = nil; f.mu.Unlock() },
 				Config:             collectorConfig(endpoint, "1.2.0"),
 				PlanOnly:           true,

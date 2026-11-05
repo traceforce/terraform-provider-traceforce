@@ -234,6 +234,7 @@ func (p *traceforceProvider) Resources(ctx context.Context) []func() resource.Re
 		NewPostConnectionResource,
 		NewSourceAppDatalakeLinkResource,
 		NewCloudConnectionResource,
+		NewCloudConnectionDeploymentResource,
 	}
 }
 
