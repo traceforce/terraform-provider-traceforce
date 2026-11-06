@@ -36,6 +36,12 @@ type fakeAPI struct {
 	tooOld   bool   // answer 426 on register
 	reissue  string // register answers this id instead (the row was replaced in Traceforce)
 	existing bool   // the next register finds a row registered before (created: false)
+
+	// Deployment (cloud_connection_deployment_resource_test.go).
+	calls          []string // "PUT deployment", "DELETE deployment", "DELETE connection", in order
+	puts           []map[string]any
+	oldBackend     bool // no deployment routes: a plain 404 without the API's code
+	noDeployedAtOn bool // PUT answers without deployedAt
 }
 
 func newFakeAPI(t *testing.T) (*fakeAPI, string) {
@@ -113,17 +119,26 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 		reply(w, 404, notFound)
 	case r.Method == http.MethodGet && path == conn:
 		reply(w, 200, f.row)
+	case f.oldBackend && strings.HasSuffix(path, "/deployment"):
+		w.WriteHeader(404)
+		_, _ = w.Write([]byte("<html>404: This page could not be found.</html>"))
 	case r.Method == http.MethodPut && path == conn+"/deployment":
+		f.calls, f.puts = append(f.calls, "PUT deployment"), append(f.puts, body)
 		f.row["collectorId"], f.row["identityId"] = body["collectorId"], body["identityId"]
 		if regions, ok := body["regions"]; ok {
 			f.row["regions"] = regions
 		}
 		f.row["deployedAt"] = "2026-10-30T10:00:00Z"
+		if f.noDeployedAtOn {
+			f.row["deployedAt"] = nil
+		}
 		reply(w, 200, f.row)
 	case r.Method == http.MethodDelete && path == conn+"/deployment":
+		f.calls = append(f.calls, "DELETE deployment")
 		f.row["collectorId"], f.row["identityId"], f.row["deployedAt"] = nil, nil, nil
 		reply(w, 200, f.row)
 	case r.Method == http.MethodDelete && path == conn:
+		f.calls = append(f.calls, "DELETE connection")
 		f.deletes++
 		f.row = nil
 		reply(w, 200, map[string]bool{"disconnected": true})
