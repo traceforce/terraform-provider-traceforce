@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
 const (
@@ -140,6 +141,8 @@ func TestAccProviderUnknownLoginValue(t *testing.T) {
 	_, endpoint := newFakeAPI(t)
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		// terraform_data is built into Terraform 1.4 and later.
+		TerraformVersionChecks: []tfversion.TerraformVersionCheck{tfversion.SkipBelow(tfversion.Version1_4_0)},
 		Steps: []resource.TestStep{
 			{
 				// The secret comes from a resource created in the same apply: unknown at plan time.
