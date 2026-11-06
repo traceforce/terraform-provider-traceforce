@@ -8,7 +8,7 @@ require (
 	github.com/hashicorp/terraform-plugin-go v0.28.0
 	github.com/hashicorp/terraform-plugin-log v0.9.0
 	github.com/hashicorp/terraform-plugin-testing v1.13.2
-	github.com/traceforce/traceforce-go-sdk v1.0.18-0.20261030115434-2c9f5ba426c7
+	github.com/traceforce/traceforce-go-sdk v1.0.18-0.20261106170332-a720b04c97c6
 )
 
 require (

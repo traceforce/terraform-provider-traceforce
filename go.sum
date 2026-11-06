@@ -151,6 +151,8 @@ github.com/traceforce/traceforce-go-sdk v1.0.17 h1:ZjYM+X3bmLCQe5LzP+SyR/xOUXpQu
 github.com/traceforce/traceforce-go-sdk v1.0.17/go.mod h1:tGUpoMFqNetpaHCGB5VBickq3Cf22OEnHtPC7yg0obk=
 github.com/traceforce/traceforce-go-sdk v1.0.18-0.20261030115434-2c9f5ba426c7 h1:Vxl+O5fh4RM1+CsFfFyQ4fKgkdR7DNs7d8zfp83p2qA=
 github.com/traceforce/traceforce-go-sdk v1.0.18-0.20261030115434-2c9f5ba426c7/go.mod h1:tGUpoMFqNetpaHCGB5VBickq3Cf22OEnHtPC7yg0obk=
+github.com/traceforce/traceforce-go-sdk v1.0.18-0.20261106170332-a720b04c97c6 h1:8HgVWKtxSc5GqcahH11NOtXrBQ3G+fgoo/+/9t2/e0Q=
+github.com/traceforce/traceforce-go-sdk v1.0.18-0.20261106170332-a720b04c97c6/go.mod h1:tGUpoMFqNetpaHCGB5VBickq3Cf22OEnHtPC7yg0obk=
 github.com/vmihailenco/msgpack v3.3.3+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=
 github.com/vmihailenco/msgpack v4.0.4+incompatible h1:dSLoQfGFAo3F6OoNhwUmLwVgaUXK79GlxNBwueZn0xI=
 github.com/vmihailenco/msgpack v4.0.4+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=

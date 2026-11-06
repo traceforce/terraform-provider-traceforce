@@ -19,15 +19,23 @@ import (
 
 // These tests run against a fake Traceforce API, so they need no API key.
 
-const fakeConnID = "3b0c6d1e-1111-4222-8333-444455556666"
+const (
+	fakeConnID  = "3b0c6d1e-1111-4222-8333-444455556666"
+	otherConnID = "3b0c6d1e-9999-4222-8333-444455556666"
+	fakeAPIKey  = "key-1" // the api_key the fake accepts
+)
 
 // fakeAPI stands in for the Traceforce cloud-connection routes (one connection).
 type fakeAPI struct {
-	mu      sync.Mutex
-	logins  []map[string]any
-	row     map[string]any // nil = no connection
-	deletes int
-	tooOld  bool // answer 426 on register
+	mu       sync.Mutex
+	logins   []map[string]any
+	auths    []string       // Authorization of each cloud-connection call
+	row      map[string]any // nil = no connection
+	posts    []map[string]any
+	deletes  int
+	tooOld   bool   // answer 426 on register
+	reissue  string // register answers this id instead (the row was replaced in Traceforce)
+	existing bool   // the next register finds a row registered before (created: false)
 }
 
 func newFakeAPI(t *testing.T) (*fakeAPI, string) {
@@ -42,48 +50,88 @@ func reply(w http.ResponseWriter, status int, body any) {
 	_ = json.NewEncoder(w).Encode(body)
 }
 
+// set changes the stored connection, as Traceforce or another workspace would.
+func (f *fakeAPI) set(key string, value any) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.row[key] = value
+}
+
 func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var body map[string]any
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1")
-	conn := "/cloud-connections/" + fakeConnID
+	auth := r.Header.Get("Authorization")
+	notFound := map[string]string{"error": "Connection not found", "code": "connection_not_found"}
 
-	switch {
-	case r.Method == http.MethodPost && path == "/api-keys":
+	if r.Method == http.MethodPost && path == "/api-keys" {
 		f.logins = append(f.logins, body)
 		reply(w, 200, map[string]string{"access_token": "tok"})
-	case r.Header.Get("Authorization") != "Bearer tok":
+		return
+	}
+	if auth != "Bearer tok" && auth != "Bearer "+fakeAPIKey {
 		reply(w, 401, map[string]string{"error": "Authentication required"})
+		return
+	}
+	f.auths = append(f.auths, auth)
+	conn := "/cloud-connections/"
+	if f.row != nil {
+		conn += f.row["id"].(string)
+	}
+
+	switch {
 	case r.Method == http.MethodPost && path == "/cloud-connections":
+		f.posts = append(f.posts, body)
 		if f.tooOld {
-			reply(w, 426, map[string]string{"error": "Collector 1.0.0 is older than 1.2.0."})
+			reply(w, 426, map[string]string{"error": "Collector 1.0.0 is older than 1.2.0.", "code": "collector_too_old"})
 			return
 		}
-		if f.row == nil {
-			f.row = map[string]any{"id": fakeConnID, "status": 1}
+		created := f.row == nil && !f.existing
+		if f.row == nil || f.reissue != "" {
+			id := fakeConnID
+			if f.reissue != "" {
+				id, f.reissue = f.reissue, ""
+			}
+			f.row = map[string]any{"id": id, "provider": body["provider"], "status": 1, "name": nil, "regions": []string{}}
 		}
-		f.row["account_ref"], f.row["module_version"] = body["account"], body["moduleVersion"]
-		reply(w, 200, map[string]string{"id": fakeConnID})
+		f.existing = false
+		f.row["account"] = strings.ToLower(body["account"].(string))
+		f.row["moduleVersion"], f.row["moduleCommit"] = body["moduleVersion"], body["moduleCommit"]
+		if name, ok := body["name"]; ok {
+			f.row["name"] = name
+		}
+		answer := map[string]any{"created": created}
+		for k, v := range f.row {
+			answer[k] = v
+		}
+		reply(w, 200, answer)
 	case f.row == nil:
-		reply(w, 404, map[string]string{"error": "Connection not found"})
+		reply(w, 404, notFound)
 	case r.Method == http.MethodGet && path == conn:
 		reply(w, 200, f.row)
 	case r.Method == http.MethodPut && path == conn+"/deployment":
-		f.row["collector_id"], f.row["deployed_at"] = body["collectorId"], "2026-10-30T10:00:00Z"
-		reply(w, 200, map[string]bool{"deployed": true})
+		f.row["collectorId"], f.row["identityId"] = body["collectorId"], body["identityId"]
+		if regions, ok := body["regions"]; ok {
+			f.row["regions"] = regions
+		}
+		f.row["deployedAt"] = "2026-10-30T10:00:00Z"
+		reply(w, 200, f.row)
+	case r.Method == http.MethodDelete && path == conn+"/deployment":
+		f.row["collectorId"], f.row["identityId"], f.row["deployedAt"] = nil, nil, nil
+		reply(w, 200, f.row)
 	case r.Method == http.MethodDelete && path == conn:
 		f.deletes++
 		f.row = nil
 		reply(w, 200, map[string]bool{"disconnected": true})
 	default:
-		reply(w, 404, map[string]string{"error": "not found"})
+		reply(w, 404, notFound)
 	}
 }
 
-// collectorConfig is the provider block and both resources, as the collector Terraform uses them.
-func collectorConfig(endpoint, version string) string {
+// collectorProvider is the provider block the collector Terraform uses.
+func collectorProvider(endpoint string) string {
 	return fmt.Sprintf(`
 provider "traceforce" {
   endpoint      = %q
@@ -91,22 +139,26 @@ provider "traceforce" {
   client_secret = "secret-1"
   device_id     = "cloud-collector-aws"
 }
+`, endpoint)
+}
 
+// connectionConfig is the provider block and one connection.
+func connectionConfig(endpoint, cloud, account, version string) string {
+	return collectorProvider(endpoint) + fmt.Sprintf(`
 resource "traceforce_cloud_connection" "test" {
-  provider_name  = "aws"
-  account        = "111111111111"
+  provider_name  = %q
+  account        = %q
   name           = "Test"
   module_version = %q
 }
+`, cloud, account, version)
+}
 
-resource "traceforce_cloud_connection_deployment" "test" {
-  connection_id = traceforce_cloud_connection.test.id
-  collector_id  = "arn:aws:lambda:us-east-1:111111111111:function:C"
-  identity_id   = "arn:aws:iam::111111111111:role/R"
-  regions       = ["us-east-1"]
+func collectorConfig(endpoint, version string) string {
+	return connectionConfig(endpoint, "aws", "111111111111", version)
 }
-`, endpoint, version)
-}
+
+const conn = "traceforce_cloud_connection.test"
 
 func TestAccCloudConnectionLifecycle(t *testing.T) {
 	f, endpoint := newFakeAPI(t)
@@ -116,9 +168,10 @@ func TestAccCloudConnectionLifecycle(t *testing.T) {
 			{
 				Config: collectorConfig(endpoint, "1.2.0"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("traceforce_cloud_connection.test", "id", fakeConnID),
-					resource.TestCheckResourceAttr("traceforce_cloud_connection.test", "status", "1"),
-					resource.TestCheckResourceAttr("traceforce_cloud_connection_deployment.test", "deployed_at", "2026-10-30T10:00:00Z"),
+					resource.TestCheckResourceAttr(conn, "id", fakeConnID),
+					resource.TestCheckResourceAttr(conn, "status", "pending"),
+					resource.TestCheckResourceAttr(conn, "name", "Test"),
+					resource.TestCheckNoResourceAttr(conn, "module_commit"),
 					func(*terraform.State) error {
 						f.mu.Lock()
 						defer f.mu.Unlock()
@@ -131,15 +184,28 @@ func TestAccCloudConnectionLifecycle(t *testing.T) {
 				),
 			},
 			{
+				// Import by id fills every attribute from Traceforce.
+				ResourceName:      conn,
+				ImportState:       true,
+				ImportStateId:     fakeConnID,
+				ImportStateVerify: true,
+			},
+			{
 				// New bundle: registered again, same connection (no replace).
 				Config: collectorConfig(endpoint, "1.3.0"),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttr("traceforce_cloud_connection.test", "id", fakeConnID),
-					resource.TestCheckResourceAttr("traceforce_cloud_connection.test", "module_version", "1.3.0"),
+					resource.TestCheckResourceAttr(conn, "id", fakeConnID),
+					resource.TestCheckResourceAttr(conn, "module_version", "1.3.0"),
 				),
 			},
+			{
+				// Status from Traceforce is refreshed.
+				PreConfig: func() { f.set("status", 2) },
+				Config:    collectorConfig(endpoint, "1.3.0"),
+				Check:     resource.TestCheckResourceAttr(conn, "status", "connected"),
+			},
 		},
-		// Destroy: the connection is disconnected once; the deployment makes no call.
+		// Destroy: the connection is disconnected once.
 		CheckDestroy: func(*terraform.State) error {
 			f.mu.Lock()
 			defer f.mu.Unlock()
@@ -158,11 +224,77 @@ func TestAccCloudConnectionGoneIsRecreated(t *testing.T) {
 		Steps: []resource.TestStep{
 			{Config: collectorConfig(endpoint, "1.2.0")},
 			{
-				// Disconnected in Settings: GET answers 404, so the next apply registers again.
+				// Disconnected in Settings: GET answers 404, so the next apply registers it again.
 				PreConfig:          func() { f.mu.Lock(); f.row = nil; f.mu.Unlock() },
 				Config:             collectorConfig(endpoint, "1.2.0"),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+func TestAccCloudConnectionDriftIsDetected(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: collectorConfig(endpoint, "1.2.0")},
+			{
+				// Another workspace registered a different bundle: the plan registers ours again.
+				PreConfig:          func() { f.set("moduleVersion", "1.9.0") },
+				Config:             collectorConfig(endpoint, "1.2.0"),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				// module_commit set in Traceforce but not in the configuration: cleared on the next apply.
+				PreConfig:          func() { f.set("moduleVersion", "1.2.0"); f.set("moduleCommit", "abc") },
+				Config:             collectorConfig(endpoint, "1.2.0"),
+				PlanOnly:           true,
+				ExpectNonEmptyPlan: true,
+			},
+		},
+	})
+}
+
+func TestAccCloudConnectionAccountCaseIsNotAChange(t *testing.T) {
+	_, endpoint := newFakeAPI(t)
+	tenant := "AAAAAAAA-0000-4000-8000-00000000000A" // Traceforce stores it in lowercase
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: connectionConfig(endpoint, "m365", tenant, "1.2.0"),
+				Check:  resource.TestCheckResourceAttr(conn, "account", tenant),
+			},
+			{Config: connectionConfig(endpoint, "m365", tenant, "1.2.0"), PlanOnly: true}, // no replace planned
+		},
+	})
+}
+
+func TestAccCloudConnectionAlreadyRegistered(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	f.existing = true // e.g. connected by an earlier collector: taken over with a warning
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: collectorConfig(endpoint, "1.2.0"), Check: resource.TestCheckResourceAttr(conn, "id", fakeConnID)},
+		},
+	})
+}
+
+func TestAccCloudConnectionReplacedDuringUpdate(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: collectorConfig(endpoint, "1.2.0")},
+			{
+				// The row was replaced in Traceforce between refresh and apply.
+				PreConfig:   func() { f.mu.Lock(); f.reissue = otherConnID; f.mu.Unlock() },
+				Config:      collectorConfig(endpoint, "1.3.0"),
+				ExpectError: regexp.MustCompile(`Cloud connection was replaced`),
 			},
 		},
 	})
@@ -174,29 +306,20 @@ func TestAccCloudConnectionOldBundle(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			{Config: collectorConfig(endpoint, "1.0.0"), ExpectError: regexp.MustCompile(`older than 1\.2\.0`)},
+			{Config: collectorConfig(endpoint, "1.0.0"), ExpectError: regexp.MustCompile(`Collector bundle too old`)},
 		},
 	})
 }
 
-func TestAccProviderNeedsALogin(t *testing.T) {
-	t.Setenv("TRACEFORCE_API_KEY", "")
-	t.Setenv("TRACEFORCE_CLIENT_ID", "")
+func TestAccCloudConnectionUnknownCloud(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			{
-				Config: `
-provider "traceforce" {}
-
-resource "traceforce_cloud_connection" "test" {
-  provider_name  = "aws"
-  account        = "111111111111"
-  module_version = "1.2.0"
-}
-`,
-				ExpectError: regexp.MustCompile(`Missing Traceforce API key`),
-			},
+			{Config: connectionConfig(endpoint, "gcp", "p", "1.2.0"), ExpectError: regexp.MustCompile(`provider_name must be one of aws, m365`)},
 		},
 	})
+	if len(f.posts) != 0 {
+		t.Fatalf("nothing should be sent, got %d registrations", len(f.posts))
+	}
 }

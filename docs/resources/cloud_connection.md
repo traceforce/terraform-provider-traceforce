@@ -3,12 +3,12 @@
 page_title: "traceforce_cloud_connection Resource - traceforce"
 subcategory: ""
 description: |-
-  A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy.
+  A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy. If this organization already has the account (e.g. from an earlier collector, or a lost state), apply takes that connection over and warns. Import an existing connection with its ID.
 ---
 
 # traceforce_cloud_connection (Resource)
 
-A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy.
+A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy. If this organization already has the account (e.g. from an earlier collector, or a lost state), apply takes that connection over and warns. Import an existing connection with its ID.
 
 ## Example Usage
 
@@ -33,16 +33,16 @@ resource "traceforce_cloud_connection" "this" {
 
 ### Required
 
-- `account` (String) AWS account ID or Microsoft 365 tenant ID.
+- `account` (String) AWS account ID or Microsoft 365 tenant ID (stored in lowercase).
 - `module_version` (String) Collector bundle version, e.g. 1.2.0. Apply fails when it is older than the minimum Traceforce accepts.
 - `provider_name` (String) Cloud: aws or m365.
 
 ### Optional
 
 - `module_commit` (String) Git commit of that bundle.
-- `name` (String) Name shown on the connection card until the collector's first upload.
+- `name` (String) Name shown on the connection card until the collector's first upload, which may replace it. Removing it keeps the current name.
 
 ### Read-Only
 
 - `id` (String) System generated ID of the connection.
-- `status` (Number) 1 pending (no upload yet), 2 connected, 3 last upload failed.
+- `status` (String) pending (no upload yet), connected, or failed (the last upload carried an error).

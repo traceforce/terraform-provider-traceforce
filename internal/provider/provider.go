@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	traceforce "github.com/traceforce/traceforce-go-sdk"
@@ -61,7 +62,6 @@ func (p *traceforceProvider) Schema(ctx context.Context, req provider.SchemaRequ
 				Description:         "Client ID of one of your Traceforce API clients (Settings → API Clients), used instead of api_key. May also be provided via TRACEFORCE_CLIENT_ID environment variable.",
 				MarkdownDescription: "Client ID of an API client, used instead of `api_key`",
 				Optional:            true,
-				Sensitive:           true,
 			},
 			"client_secret": schema.StringAttribute{
 				Description:         "Client secret of that API client. May also be provided via TRACEFORCE_CLIENT_SECRET environment variable.",
@@ -101,22 +101,26 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 	// If practitioner provided a configuration value for any of the
 	// attributes, it must be a known value.
 
-	if config.Endpoint.IsUnknown() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("endpoint"),
-			"Unknown Traceforce API endpoint",
-			"The provider cannot create the Traceforce API client as there is an unknown configuration value for the Traceforce API endpoint. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the TRACEFORCE_ENDPOINT environment variable.",
-		)
-	}
-
-	if config.ApiKey.IsUnknown() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("apiKey"),
-			"Unknown Traceforce API key",
-			"The provider cannot create the Traceforce API client as there is an unknown configuration value for the Traceforce API key. "+
-				"Either target apply the source of the value first, set the value statically in the configuration, or use the TRACEFORCE_API_KEY environment variable.",
-		)
+	for _, setting := range []struct {
+		value     types.String
+		attribute string
+		label     string
+		envVar    string
+	}{
+		{config.Endpoint, "endpoint", "API endpoint", "TRACEFORCE_ENDPOINT"},
+		{config.ApiKey, "api_key", "API key", "TRACEFORCE_API_KEY"},
+		{config.ClientID, "client_id", "client ID", "TRACEFORCE_CLIENT_ID"},
+		{config.ClientSecret, "client_secret", "client secret", "TRACEFORCE_CLIENT_SECRET"},
+		{config.DeviceID, "device_id", "device ID", "TRACEFORCE_DEVICE_ID"},
+	} {
+		if setting.value.IsUnknown() {
+			resp.Diagnostics.AddAttributeError(
+				path.Root(setting.attribute),
+				"Unknown Traceforce "+setting.label,
+				"The provider cannot create the Traceforce API client as there is an unknown configuration value for the Traceforce "+setting.label+". "+
+					"Either target apply the source of the value first, set the value statically in the configuration, or use the "+setting.envVar+" environment variable.",
+			)
+		}
 	}
 
 	if resp.Diagnostics.HasError() {
@@ -125,33 +129,23 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 
 	// Default values to environment variables, but override
 	// with Terraform configuration value if set.
-
-	endpoint := os.Getenv("TRACEFORCE_ENDPOINT")
-	apiKey := os.Getenv("TRACEFORCE_API_KEY")
-
-	if !config.Endpoint.IsNull() && config.Endpoint.ValueString() != "" {
-		endpoint = config.Endpoint.ValueString()
+	configured := func(v types.String, envVar string) string {
+		if !v.IsNull() && v.ValueString() != "" {
+			return v.ValueString()
+		}
+		return os.Getenv(envVar)
 	}
+	endpoint := configured(config.Endpoint, "TRACEFORCE_ENDPOINT")
+	clientSecret := configured(config.ClientSecret, "TRACEFORCE_CLIENT_SECRET")
+	deviceID := configured(config.DeviceID, "TRACEFORCE_DEVICE_ID")
 
-	if !config.ApiKey.IsNull() && config.ApiKey.ValueString() != "" {
-		apiKey = config.ApiKey.ValueString()
-	}
-
-	// Log in with an API client instead of api_key (the cloud collector's Terraform).
-	clientID := os.Getenv("TRACEFORCE_CLIENT_ID")
-	clientSecret := os.Getenv("TRACEFORCE_CLIENT_SECRET")
-	deviceID := os.Getenv("TRACEFORCE_DEVICE_ID")
-
-	if !config.ClientID.IsNull() && config.ClientID.ValueString() != "" {
-		clientID = config.ClientID.ValueString()
-	}
-
-	if !config.ClientSecret.IsNull() && config.ClientSecret.ValueString() != "" {
-		clientSecret = config.ClientSecret.ValueString()
-	}
-
-	if !config.DeviceID.IsNull() && config.DeviceID.ValueString() != "" {
-		deviceID = config.DeviceID.ValueString()
+	// Two ways to log in: api_key, or an API client (client_id + client_secret,
+	// the cloud collector's Terraform). A value in the configuration beats the
+	// environment, so an exported TRACEFORCE_CLIENT_ID never replaces an
+	// api_key set in the configuration. Both at the same level is an error.
+	apiKey, clientID := config.ApiKey.ValueString(), config.ClientID.ValueString()
+	if apiKey == "" && clientID == "" {
+		apiKey, clientID = os.Getenv("TRACEFORCE_API_KEY"), os.Getenv("TRACEFORCE_CLIENT_ID")
 	}
 
 	// If any of the expected configurations are missing, return
@@ -164,18 +158,24 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 		)
 	}
 
-	if apiKey == "" && clientID == "" {
+	switch {
+	case apiKey != "" && clientID != "":
 		resp.Diagnostics.AddAttributeError(
-			path.Root("apiKey"),
+			path.Root("client_id"),
+			"Two Traceforce logins",
+			"Both api_key and client_id are set (in the configuration, or both in the environment as TRACEFORCE_API_KEY and TRACEFORCE_CLIENT_ID). "+
+				"Set only one of them.",
+		)
+	case apiKey == "" && clientID == "":
+		resp.Diagnostics.AddAttributeError(
+			path.Root("api_key"),
 			"Missing Traceforce API key",
 			"The provider cannot create the Traceforce API client as there is a missing or empty value for the Traceforce API key. "+
-				"Set the apiKey value in the configuration or use the TRACEFORCE_API_KEY environment variable, "+
+				"Set the api_key value in the configuration or use the TRACEFORCE_API_KEY environment variable, "+
 				"or log in with client_id and client_secret (TRACEFORCE_CLIENT_ID, TRACEFORCE_CLIENT_SECRET). "+
 				"If either is already set, ensure the value is not empty.",
 		)
-	}
-
-	if clientID != "" && clientSecret == "" {
+	case clientID != "" && clientSecret == "":
 		resp.Diagnostics.AddAttributeError(
 			path.Root("client_secret"),
 			"Missing Traceforce client secret",
@@ -206,7 +206,8 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 	var client *traceforce.Client
 	var err error
 	if clientID != "" {
-		client, err = traceforce.NewClientWithCredentials(clientID, clientSecret, deviceID, endpoint, options)
+		client, err = traceforce.NewClientWithCredentials(
+			traceforce.Credentials{ClientID: clientID, ClientSecret: clientSecret, DeviceID: deviceID}, endpoint, options)
 	} else {
 		client, err = traceforce.NewClient(apiKey, endpoint, options)
 	}
@@ -258,6 +259,7 @@ func (p *traceforceProvider) Functions(ctx context.Context) []func() function.Fu
 // Configure made (resp.ResourceData = client, above). Terraform hands it to each
 // resource's Configure as req.ProviderData. It is nil on the first call, before
 // the provider is configured; anything other than a *traceforce.Client is an error.
+// Used by the cloud-connection resources (the older resources keep their own copy).
 func clientFrom(data any, diags *diag.Diagnostics) *traceforce.Client {
 	if data == nil {
 		return nil
@@ -265,7 +267,7 @@ func clientFrom(data any, diags *diag.Diagnostics) *traceforce.Client {
 	client, ok := data.(*traceforce.Client)
 	if !ok {
 		diags.AddError("Unexpected Provider Configuration",
-			"An error occurred while configuring the provider. Please contact support if this persists.")
+			fmt.Sprintf("Expected *traceforce.Client, got: %T. Please report this issue to the provider developers.", data))
 	}
 	return client
 }
