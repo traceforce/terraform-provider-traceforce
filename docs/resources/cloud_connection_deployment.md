@@ -3,12 +3,12 @@
 page_title: "traceforce_cloud_connection_deployment Resource - traceforce"
 subcategory: ""
 description: |-
-  The collector Terraform created for a cloud connection. Destroy makes no call: disconnecting the connection clears it.
+  The collector Terraform created for a cloud connection. Destroy clears it in Traceforce. Needs a Traceforce backend with the cloud-connection deployment routes.
 ---
 
 # traceforce_cloud_connection_deployment (Resource)
 
-The collector Terraform created for a cloud connection. Destroy makes no call: disconnecting the connection clears it.
+The collector Terraform created for a cloud connection. Destroy clears it in Traceforce. Needs a Traceforce backend with the cloud-connection deployment routes.
 
 ## Example Usage
 
@@ -32,7 +32,7 @@ resource "traceforce_cloud_connection_deployment" "this" {
 
 ### Optional
 
-- `regions` (List of String) AWS Regions the collector reads (AWS only).
+- `regions` (List of String) AWS Regions the collector reads (AWS only, at least one). Removing it keeps the stored regions; the collector's uploads may replace them.
 
 ### Read-Only
 
