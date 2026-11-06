@@ -326,6 +326,21 @@ func TestAccCloudConnectionOldBundle(t *testing.T) {
 	})
 }
 
+func TestAccCloudConnectionOldBundleOnUpdate(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: collectorConfig(endpoint, "1.2.0")},
+			{
+				PreConfig:   func() { f.mu.Lock(); f.tooOld = true; f.mu.Unlock() },
+				Config:      collectorConfig(endpoint, "1.0.0"),
+				ExpectError: regexp.MustCompile(`Collector bundle too old`),
+			},
+		},
+	})
+}
+
 func TestAccCloudConnectionUnknownCloud(t *testing.T) {
 	f, endpoint := newFakeAPI(t)
 	resource.Test(t, resource.TestCase{
