@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -171,6 +172,18 @@ func (r *cloudConnectionResource) register(plan *cloudConnectionResourceModel) (
 	return conn, nil
 }
 
+// registerFailed reports a failed register; a bundle below the minimum (HTTP 426) gets its own message.
+func registerFailed(diags *diag.Diagnostics, summary, moduleVersion string, err error) {
+	var apiErr *traceforce.APIError
+	if errors.As(err, &apiErr) && apiErr.Code == traceforce.ErrCollectorTooOld {
+		diags.AddAttributeError(path.Root("module_version"), "Collector bundle too old",
+			fmt.Sprintf("Collector bundle %s is older than the minimum Traceforce accepts. Download the latest collector "+
+				"from Traceforce and apply again. Nothing was changed.\n\n%s", moduleVersion, err))
+		return
+	}
+	diags.AddError(summary, err.Error())
+}
+
 func (r *cloudConnectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan cloudConnectionResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -180,15 +193,8 @@ func (r *cloudConnectionResource) Create(ctx context.Context, req resource.Creat
 	// A bundle older than the minimum version fails here (HTTP 426), before
 	// anything that depends on this resource is created.
 	conn, err := r.register(&plan)
-	var apiErr *traceforce.APIError
-	if errors.As(err, &apiErr) && apiErr.Code == traceforce.ErrCollectorTooOld {
-		resp.Diagnostics.AddAttributeError(path.Root("module_version"), "Collector bundle too old",
-			fmt.Sprintf("Collector bundle %s is older than the minimum Traceforce accepts. Download the latest collector "+
-				"from Traceforce and apply again. Nothing was created.\n\n%s", plan.ModuleVersion.ValueString(), err))
-		return
-	}
 	if err != nil {
-		resp.Diagnostics.AddError("Error registering cloud connection", err.Error())
+		registerFailed(&resp.Diagnostics, "Error registering cloud connection", plan.ModuleVersion.ValueString(), err)
 		return
 	}
 	if !conn.Created {
@@ -229,7 +235,7 @@ func (r *cloudConnectionResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 	if _, err := r.register(&plan); err != nil {
-		resp.Diagnostics.AddError("Error updating cloud connection", err.Error())
+		registerFailed(&resp.Diagnostics, "Error updating cloud connection", plan.ModuleVersion.ValueString(), err)
 		return
 	}
 	// The connection was removed in Traceforce after the last refresh, so the
