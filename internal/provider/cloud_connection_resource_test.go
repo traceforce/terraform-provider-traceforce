@@ -78,7 +78,8 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 	f.auths = append(f.auths, auth)
 	conn := "/cloud-connections/"
 	if f.row != nil {
-		conn += f.row["id"].(string)
+		id, _ := f.row["id"].(string)
+		conn += id
 	}
 
 	switch {
@@ -97,7 +98,8 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 			f.row = map[string]any{"id": id, "provider": body["provider"], "status": 1, "name": nil, "regions": []string{}}
 		}
 		f.existing = false
-		f.row["account"] = strings.ToLower(body["account"].(string))
+		account, _ := body["account"].(string)
+		f.row["account"] = strings.ToLower(account)
 		f.row["moduleVersion"], f.row["moduleCommit"] = body["moduleVersion"], body["moduleCommit"]
 		if name, ok := body["name"]; ok {
 			f.row["name"] = name
