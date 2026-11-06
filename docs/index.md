@@ -26,7 +26,7 @@ provider "traceforce" {
 ### Optional
 
 - `api_key` (String) API key to the service
-- `client_id` (String, Sensitive) Client ID of an API client, used instead of `api_key`
+- `client_id` (String) Client ID of an API client, used instead of `api_key`
 - `client_secret` (String, Sensitive) Client secret of that API client
 - `device_id` (String) Who the token is for when logging in with `client_id`, e.g. `cloud-collector-aws`
 - `endpoint` (String) Service endpoint

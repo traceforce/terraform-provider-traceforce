@@ -5,8 +5,11 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -17,9 +20,14 @@ import (
 
 // Ensure the implementation satisfies the expected interfaces.
 var (
-	_ resource.Resource              = &cloudConnectionResource{}
-	_ resource.ResourceWithConfigure = &cloudConnectionResource{}
+	_ resource.Resource                   = &cloudConnectionResource{}
+	_ resource.ResourceWithConfigure      = &cloudConnectionResource{}
+	_ resource.ResourceWithImportState    = &cloudConnectionResource{}
+	_ resource.ResourceWithValidateConfig = &cloudConnectionResource{}
 )
+
+// cloudProviders are the clouds with a customer-hosted collector.
+var cloudProviders = []string{"aws", "m365"}
 
 // NewCloudConnectionResource registers a customer cloud account (AWS account or
 // Microsoft 365 tenant) with Traceforce at the start of terraform apply, and
@@ -39,7 +47,7 @@ type cloudConnectionResourceModel struct {
 	Name          types.String `tfsdk:"name"`
 	ModuleVersion types.String `tfsdk:"module_version"`
 	ModuleCommit  types.String `tfsdk:"module_commit"`
-	Status        types.Int64  `tfsdk:"status"`
+	Status        types.String `tfsdk:"status"`
 }
 
 func (r *cloudConnectionResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -53,7 +61,9 @@ func (r *cloudConnectionResource) Configure(_ context.Context, req resource.Conf
 func (r *cloudConnectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	replace := []planmodifier.String{stringplanmodifier.RequiresReplace()}
 	resp.Schema = schema.Schema{
-		Description: "A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy.",
+		Description: "A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy. " +
+			"If this organization already has the account (e.g. from an earlier collector, or a lost state), apply takes that " +
+			"connection over and warns. Import an existing connection with its ID.",
 		Attributes: map[string]schema.Attribute{
 			// "provider" is reserved in Terraform resource blocks.
 			"provider_name": schema.StringAttribute{
@@ -62,13 +72,16 @@ func (r *cloudConnectionResource) Schema(_ context.Context, _ resource.SchemaReq
 				PlanModifiers: replace,
 			},
 			"account": schema.StringAttribute{
-				Description:   "AWS account ID or Microsoft 365 tenant ID.",
+				Description:   "AWS account ID or Microsoft 365 tenant ID (stored in lowercase).",
 				Required:      true,
 				PlanModifiers: replace,
 			},
 			"name": schema.StringAttribute{
-				Description: "Name shown on the connection card until the collector's first upload.",
-				Optional:    true,
+				Description: "Name shown on the connection card until the collector's first upload, which may replace it. " +
+					"Removing it keeps the current name.",
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"module_version": schema.StringAttribute{
 				Description: "Collector bundle version, e.g. 1.2.0. Apply fails when it is older than the minimum Traceforce accepts.",
@@ -84,18 +97,67 @@ func (r *cloudConnectionResource) Schema(_ context.Context, _ resource.SchemaReq
 				Computed:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"status": schema.Int64Attribute{
-				Description: "1 pending (no upload yet), 2 connected, 3 last upload failed.",
+			"status": schema.StringAttribute{
+				Description: "pending (no upload yet), connected, or failed (the last upload carried an error).",
 				Computed:    true,
 			},
 		},
 	}
 }
 
+// ValidateConfig refuses a cloud without a collector before anything is sent.
+func (r *cloudConnectionResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var cloud types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("provider_name"), &cloud)...)
+	if cloud.IsNull() || cloud.IsUnknown() {
+		return
+	}
+	for _, p := range cloudProviders {
+		if cloud.ValueString() == p {
+			return
+		}
+	}
+	resp.Diagnostics.AddAttributeError(path.Root("provider_name"), "Unknown cloud",
+		fmt.Sprintf("provider_name must be one of %s, got %q.", strings.Join(cloudProviders, ", "), cloud.ValueString()))
+}
+
+// statusName is the status as a word.
+func statusName(s traceforce.CloudConnectionStatus) string {
+	switch s {
+	case traceforce.CloudConnectionStatusPending:
+		return "pending"
+	case traceforce.CloudConnectionStatusConnected:
+		return "connected"
+	case traceforce.CloudConnectionStatusFailed:
+		return "failed"
+	}
+	return "unknown"
+}
+
+// fromAPI copies what Traceforce stores into the model. The account is kept as
+// written when it differs only in case (Traceforce stores it in lowercase), so
+// it does not plan a replacement. The name is only filled when the model has
+// none (import): the collector's uploads may replace it.
+func fromAPI(m *cloudConnectionResourceModel, conn *traceforce.CloudConnection) {
+	m.ID = types.StringValue(conn.ID)
+	m.ProviderName = types.StringValue(conn.Provider)
+	if !strings.EqualFold(m.Account.ValueString(), conn.Account) {
+		m.Account = types.StringValue(conn.Account)
+	}
+	if (m.Name.IsNull() || m.Name.IsUnknown()) && conn.Name != nil {
+		m.Name = types.StringValue(*conn.Name)
+	} else if m.Name.IsUnknown() {
+		m.Name = types.StringNull()
+	}
+	m.ModuleVersion = types.StringPointerValue(conn.ModuleVersion)
+	m.ModuleCommit = types.StringPointerValue(conn.ModuleCommit)
+	m.Status = types.StringValue(statusName(conn.Status))
+}
+
 // register sends the plan to Traceforce, for create and update alike: the API
-// keeps one row per org + cloud + account, so registering again returns the same id.
-func (r *cloudConnectionResource) register(plan *cloudConnectionResourceModel) error {
-	id, err := r.client.CreateCloudConnection(traceforce.CreateCloudConnectionRequest{
+// keeps one row per org + cloud + account, so registering again returns the same connection.
+func (r *cloudConnectionResource) register(plan *cloudConnectionResourceModel) (*traceforce.CloudConnection, error) {
+	conn, err := r.client.CreateCloudConnection(traceforce.CreateCloudConnectionRequest{
 		Provider:      plan.ProviderName.ValueString(),
 		Account:       plan.Account.ValueString(),
 		Name:          plan.Name.ValueString(),
@@ -103,18 +165,10 @@ func (r *cloudConnectionResource) register(plan *cloudConnectionResourceModel) e
 		ModuleCommit:  plan.ModuleCommit.ValueString(),
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	conn, err := r.client.GetCloudConnection(id)
-	if err != nil {
-		return err
-	}
-	if conn == nil {
-		return fmt.Errorf("cloud connection %s not found right after registering it", id)
-	}
-	plan.ID = types.StringValue(id)
-	plan.Status = types.Int64Value(int64(conn.Status))
-	return nil
+	fromAPI(plan, conn)
+	return conn, nil
 }
 
 func (r *cloudConnectionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -125,9 +179,23 @@ func (r *cloudConnectionResource) Create(ctx context.Context, req resource.Creat
 	}
 	// A bundle older than the minimum version fails here (HTTP 426), before
 	// anything that depends on this resource is created.
-	if err := r.register(&plan); err != nil {
+	conn, err := r.register(&plan)
+	var apiErr *traceforce.APIError
+	if errors.As(err, &apiErr) && apiErr.Code == traceforce.ErrCollectorTooOld {
+		resp.Diagnostics.AddAttributeError(path.Root("module_version"), "Collector bundle too old",
+			fmt.Sprintf("Collector bundle %s is older than the minimum Traceforce accepts. Download the latest collector "+
+				"from Traceforce and apply again. Nothing was created.\n\n%s", plan.ModuleVersion.ValueString(), err))
+		return
+	}
+	if err != nil {
 		resp.Diagnostics.AddError("Error registering cloud connection", err.Error())
 		return
+	}
+	if !conn.Created {
+		resp.Diagnostics.AddWarning("Cloud connection already registered",
+			fmt.Sprintf("This organization already had %s account %s (connection %s), so this configuration now manages it. "+
+				"If another Terraform state also manages it, remove it from one of them (terraform state rm): "+
+				"a destroy in either one disconnects it.", conn.Provider, conn.Account, conn.ID))
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
@@ -149,18 +217,27 @@ func (r *cloudConnectionResource) Read(ctx context.Context, req resource.ReadReq
 		resp.State.RemoveResource(ctx)
 		return
 	}
-	state.Status = types.Int64Value(int64(conn.Status))
+	fromAPI(&state, conn)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *cloudConnectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan cloudConnectionResourceModel
+	var plan, state cloudConnectionResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.register(&plan); err != nil {
+	if _, err := r.register(&plan); err != nil {
 		resp.Diagnostics.AddError("Error updating cloud connection", err.Error())
+		return
+	}
+	// The connection was removed in Traceforce after the last refresh, so the
+	// API registered a new one: refresh and apply again.
+	if plan.ID.ValueString() != state.ID.ValueString() {
+		resp.Diagnostics.AddError("Cloud connection was replaced",
+			fmt.Sprintf("Connection %s no longer exists in Traceforce; the account was registered again as %s. "+
+				"Run terraform apply again to record the new connection.", state.ID.ValueString(), plan.ID.ValueString()))
 		return
 	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
@@ -176,4 +253,9 @@ func (r *cloudConnectionResource) Delete(ctx context.Context, req resource.Delet
 	if err := r.client.DeleteCloudConnection(state.ID.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Error disconnecting cloud connection", err.Error())
 	}
+}
+
+// ImportState takes an existing connection by its ID: terraform import traceforce_cloud_connection.this <id>.
+func (r *cloudConnectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
 }
