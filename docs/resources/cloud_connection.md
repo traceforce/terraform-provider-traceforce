@@ -33,14 +33,14 @@ resource "traceforce_cloud_connection" "this" {
 
 ### Required
 
-- `account` (String) AWS account ID or Microsoft 365 tenant ID (stored in lowercase).
+- `account` (String) AWS account ID or Microsoft 365 tenant ID (stored in lowercase; a change of case only is not a new account).
 - `module_version` (String) Collector bundle version, e.g. 1.2.0. Apply fails when it is older than the minimum Traceforce accepts.
 - `provider_name` (String) Cloud: aws or m365.
 
 ### Optional
 
 - `module_commit` (String) Git commit of that bundle.
-- `name` (String) Name shown on the connection card until the collector's first upload, which may replace it. Removing it keeps the current name.
+- `name` (String) Name shown on the connection card until the collector's first upload, which may replace it. Removing it sends no name, so Traceforce keeps the current one.
 
 ### Read-Only
 

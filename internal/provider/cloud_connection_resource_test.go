@@ -4,178 +4,19 @@
 package provider
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
-	"net/http/httptest"
 	"regexp"
 	"strings"
-	"sync"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
-	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	traceforce "github.com/traceforce/traceforce-go-sdk"
 )
 
-// These tests run against a fake Traceforce API, so they need no API key.
-
-const (
-	fakeConnID  = "3b0c6d1e-1111-4222-8333-444455556666"
-	otherConnID = "3b0c6d1e-9999-4222-8333-444455556666"
-	fakeAPIKey  = "key-1" // the api_key the fake accepts
-)
-
-// fakeAPI stands in for the Traceforce cloud-connection routes (one connection).
-type fakeAPI struct {
-	mu       sync.Mutex
-	logins   []map[string]any
-	auths    []string       // Authorization of each cloud-connection call
-	row      map[string]any // nil = no connection
-	posts    []map[string]any
-	deletes  int
-	tooOld   bool   // answer 426 on register
-	reissue  string // register answers this id instead (the row was replaced in Traceforce)
-	existing bool   // the next register finds a row registered before (created: false)
-
-	// Deployment (cloud_connection_deployment_resource_test.go).
-	calls          []string // "PUT deployment", "DELETE deployment", "DELETE connection", in order
-	puts           []map[string]any
-	oldBackend     bool // no deployment routes: a plain 404 without the API's code
-	noDeployedAtOn bool // PUT answers without deployedAt
-}
-
-func newFakeAPI(t *testing.T) (*fakeAPI, string) {
-	f := &fakeAPI{}
-	srv := httptest.NewServer(http.HandlerFunc(f.serve))
-	t.Cleanup(srv.Close)
-	return f, srv.URL + "/api/v1"
-}
-
-func reply(w http.ResponseWriter, status int, body any) {
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
-}
-
-// set changes the stored connection, as Traceforce or another workspace would.
-func (f *fakeAPI) set(key string, value any) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.row[key] = value
-}
-
-func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	var body map[string]any
-	_ = json.NewDecoder(r.Body).Decode(&body)
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1")
-	auth := r.Header.Get("Authorization")
-	notFound := map[string]string{"error": "Connection not found", "code": "connection_not_found"}
-
-	if r.Method == http.MethodPost && path == "/api-keys" {
-		f.logins = append(f.logins, body)
-		reply(w, 200, map[string]string{"access_token": "tok"})
-		return
-	}
-	if auth != "Bearer tok" && auth != "Bearer "+fakeAPIKey {
-		reply(w, 401, map[string]string{"error": "Authentication required"})
-		return
-	}
-	f.auths = append(f.auths, auth)
-	conn := "/cloud-connections/"
-	if f.row != nil {
-		id, _ := f.row["id"].(string)
-		conn += id
-	}
-
-	switch {
-	case r.Method == http.MethodPost && path == "/cloud-connections":
-		f.posts = append(f.posts, body)
-		if f.tooOld {
-			reply(w, 426, map[string]string{"error": "Collector 1.0.0 is older than 1.2.0.", "code": "collector_too_old"})
-			return
-		}
-		created := f.row == nil && !f.existing
-		if f.row == nil || f.reissue != "" {
-			id := fakeConnID
-			if f.reissue != "" {
-				id, f.reissue = f.reissue, ""
-			}
-			f.row = map[string]any{"id": id, "provider": body["provider"], "status": 1, "name": nil, "regions": []string{}}
-		}
-		f.existing = false
-		account, _ := body["account"].(string)
-		f.row["account"] = strings.ToLower(account)
-		f.row["moduleVersion"], f.row["moduleCommit"] = body["moduleVersion"], body["moduleCommit"]
-		if name, ok := body["name"]; ok {
-			f.row["name"] = name
-		}
-		answer := map[string]any{"created": created}
-		for k, v := range f.row {
-			answer[k] = v
-		}
-		reply(w, 200, answer)
-	case f.row == nil:
-		reply(w, 404, notFound)
-	case r.Method == http.MethodGet && path == conn:
-		reply(w, 200, f.row)
-	case f.oldBackend && strings.HasSuffix(path, "/deployment"):
-		w.WriteHeader(404)
-		_, _ = w.Write([]byte("<html>404: This page could not be found.</html>"))
-	case r.Method == http.MethodPut && path == conn+"/deployment":
-		f.calls, f.puts = append(f.calls, "PUT deployment"), append(f.puts, body)
-		f.row["collectorId"], f.row["identityId"] = body["collectorId"], body["identityId"]
-		if regions, ok := body["regions"]; ok {
-			f.row["regions"] = regions
-		}
-		f.row["deployedAt"] = "2026-10-30T10:00:00Z"
-		if f.noDeployedAtOn {
-			f.row["deployedAt"] = nil
-		}
-		reply(w, 200, f.row)
-	case r.Method == http.MethodDelete && path == conn+"/deployment":
-		f.calls = append(f.calls, "DELETE deployment")
-		f.row["collectorId"], f.row["identityId"], f.row["deployedAt"] = nil, nil, nil
-		reply(w, 200, f.row)
-	case r.Method == http.MethodDelete && path == conn:
-		f.calls = append(f.calls, "DELETE connection")
-		f.deletes++
-		f.row = nil
-		reply(w, 200, map[string]bool{"disconnected": true})
-	default:
-		reply(w, 404, notFound)
-	}
-}
-
-// collectorProvider is the provider block the collector Terraform uses.
-func collectorProvider(endpoint string) string {
-	return fmt.Sprintf(`
-provider "traceforce" {
-  endpoint      = %q
-  client_id     = "client-1"
-  client_secret = "secret-1"
-  device_id     = "cloud-collector-aws"
-}
-`, endpoint)
-}
-
-// connectionConfig is the provider block and one connection.
-func connectionConfig(endpoint, cloud, account, version string) string {
-	return collectorProvider(endpoint) + fmt.Sprintf(`
-resource "traceforce_cloud_connection" "test" {
-  provider_name  = %q
-  account        = %q
-  name           = "Test"
-  module_version = %q
-}
-`, cloud, account, version)
-}
-
-func collectorConfig(endpoint, version string) string {
-	return connectionConfig(endpoint, "aws", "111111111111", version)
-}
-
-const conn = "traceforce_cloud_connection.test"
+// These tests run against the fake Traceforce API (fake_cloud_api_test.go).
 
 func TestAccCloudConnectionLifecycle(t *testing.T) {
 	f, endpoint := newFakeAPI(t)
@@ -189,15 +30,13 @@ func TestAccCloudConnectionLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttr(conn, "status", "pending"),
 					resource.TestCheckResourceAttr(conn, "name", "Test"),
 					resource.TestCheckNoResourceAttr(conn, "module_commit"),
-					func(*terraform.State) error {
-						f.mu.Lock()
-						defer f.mu.Unlock()
+					f.expect(func() error {
 						login := f.logins[0]
 						if login["client_id"] != "client-1" || login["client_secret"] != "secret-1" || login["device_id"] != "cloud-collector-aws" {
 							return fmt.Errorf("login sent %v", login)
 						}
 						return nil
-					},
+					}),
 				),
 			},
 			{
@@ -210,6 +49,9 @@ func TestAccCloudConnectionLifecycle(t *testing.T) {
 			{
 				// New bundle: registered again, same connection (no replace).
 				Config: collectorConfig(endpoint, "1.3.0"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction(conn, plancheck.ResourceActionUpdate),
+				}},
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr(conn, "id", fakeConnID),
 					resource.TestCheckResourceAttr(conn, "module_version", "1.3.0"),
@@ -223,14 +65,12 @@ func TestAccCloudConnectionLifecycle(t *testing.T) {
 			},
 		},
 		// Destroy: the connection is disconnected once.
-		CheckDestroy: func(*terraform.State) error {
-			f.mu.Lock()
-			defer f.mu.Unlock()
+		CheckDestroy: f.expect(func() error {
 			if f.deletes != 1 {
 				return fmt.Errorf("expected 1 DELETE, got %d", f.deletes)
 			}
 			return nil
-		},
+		}),
 	})
 }
 
@@ -242,10 +82,12 @@ func TestAccCloudConnectionGoneIsRecreated(t *testing.T) {
 			{Config: collectorConfig(endpoint, "1.2.0")},
 			{
 				// Disconnected in Settings: GET answers 404, so the next apply registers it again.
-				PreConfig:          func() { f.mu.Lock(); f.row = nil; f.mu.Unlock() },
-				Config:             collectorConfig(endpoint, "1.2.0"),
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: true,
+				PreConfig: func() { f.mu.Lock(); f.row = nil; f.mu.Unlock() },
+				Config:    collectorConfig(endpoint, "1.2.0"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction(conn, plancheck.ResourceActionCreate),
+				}},
+				Check: resource.TestCheckResourceAttr(conn, "id", fakeConnID),
 			},
 		},
 	})
@@ -275,30 +117,135 @@ func TestAccCloudConnectionDriftIsDetected(t *testing.T) {
 	})
 }
 
-func TestAccCloudConnectionAccountCaseIsNotAChange(t *testing.T) {
-	_, endpoint := newFakeAPI(t)
-	tenant := "AAAAAAAA-0000-4000-8000-00000000000A" // Traceforce stores it in lowercase
+func TestAccCloudConnectionImportedUppercaseAccount(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	upper := "AAAAAAAA-0000-4000-8000-00000000000A"
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: connectionConfig(endpoint, "m365", tenant, "1.2.0"),
-				Check:  resource.TestCheckResourceAttr(conn, "account", tenant),
+				// A connection that exists in Traceforce (lowercase), not yet in any state.
+				PreConfig: func() {
+					f.mu.Lock()
+					f.row = map[string]any{"id": fakeConnID, "provider": "m365", "account": strings.ToLower(upper), "status": 2,
+						"name": "Test", "moduleVersion": "1.2.0", "moduleCommit": nil, "regions": []string{}}
+					f.mu.Unlock()
+				},
+				Config:             connectionConfig(endpoint, "m365", upper, "1.2.0", "Test"),
+				ResourceName:       conn,
+				ImportState:        true,
+				ImportStateId:      fakeConnID,
+				ImportStatePersist: true,
 			},
-			{Config: connectionConfig(endpoint, "m365", tenant, "1.2.0"), PlanOnly: true}, // no replace planned
+			{
+				// The configuration's uppercase tenant after the import: updated in place, not replaced.
+				Config: connectionConfig(endpoint, "m365", upper, "1.2.0", "Test"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction(conn, plancheck.ResourceActionUpdate),
+				}},
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr(conn, "id", fakeConnID),
+					resource.TestCheckResourceAttr(conn, "account", upper),
+					f.expect(func() error { return expectEqual(f.deletes, 0) }),
+				),
+			},
+		},
+	})
+}
+
+func TestAccCloudConnectionAccountCase(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	upper := "AAAAAAAA-0000-4000-8000-00000000000A" // Traceforce stores it in lowercase
+	lower := "aaaaaaaa-0000-4000-8000-00000000000a"
+	noDisconnect := f.expect(func() error {
+		if f.deletes != 0 {
+			return fmt.Errorf("the connection was disconnected %d time(s)", f.deletes)
+		}
+		return nil
+	})
+	inPlace := resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+		plancheck.ExpectResourceAction(conn, plancheck.ResourceActionUpdate),
+	}}
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: connectionConfig(endpoint, "m365", upper, "1.2.0", "Test"),
+				Check:  resource.TestCheckResourceAttr(conn, "account", upper),
+			},
+			{Config: connectionConfig(endpoint, "m365", upper, "1.2.0", "Test"), PlanOnly: true}, // nothing to do
+			{
+				// A case-only edit of the configuration: also in place.
+				Config:           connectionConfig(endpoint, "m365", lower, "1.2.0", "Test"),
+				ConfigPlanChecks: inPlace,
+				Check:            resource.ComposeAggregateTestCheckFunc(resource.TestCheckResourceAttr(conn, "id", fakeConnID), noDisconnect),
+			},
+			{
+				// Another account: replaced.
+				Config: connectionConfig(endpoint, "m365", "bbbbbbbb-0000-4000-8000-00000000000b", "1.2.0", "Test"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction(conn, plancheck.ResourceActionDestroyBeforeCreate),
+				}},
+			},
+		},
+	})
+}
+
+func TestAccCloudConnectionNameRemoved(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: collectorConfig(endpoint, "1.2.0")},
+			{
+				// The collector's upload replaced the name; then name is removed and the bundle changes.
+				PreConfig: func() { f.set("name", "collector-name") },
+				Config:    connectionConfig(endpoint, "aws", "111111111111", "1.3.0", ""),
+				Check: f.expect(func() error {
+					last := f.posts[len(f.posts)-1]
+					if _, sent := last["name"]; sent {
+						return fmt.Errorf("a removed name was sent again: %v", last)
+					}
+					return expectEqual(f.row["name"], "collector-name")
+				}),
+			},
+			{
+				// Set again: sent.
+				Config: connectionConfig(endpoint, "aws", "111111111111", "1.3.0", "Prod"),
+				Check:  f.expect(func() error { return expectEqual(f.row["name"], "Prod") }),
+			},
 		},
 	})
 }
 
 func TestAccCloudConnectionAlreadyRegistered(t *testing.T) {
 	f, endpoint := newFakeAPI(t)
-	f.existing = true // e.g. connected by an earlier collector: taken over with a warning
+	f.existing = true // e.g. connected by an earlier collector: taken over (with the takenOver warning)
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{Config: collectorConfig(endpoint, "1.2.0"), Check: resource.TestCheckResourceAttr(conn, "id", fakeConnID)},
 		},
 	})
+}
+
+func TestTakenOverWarnsOnlyForAnExistingConnection(t *testing.T) {
+	existing := takenOver(&traceforce.CloudConnection{ID: fakeConnID, Provider: "aws", Account: "111111111111", Created: false})
+	if existing.WarningsCount() != 1 || existing.Warnings()[0].Summary() != "Cloud connection already registered" {
+		t.Fatalf("an existing connection should warn once, got %v", existing)
+	}
+	if created := takenOver(&traceforce.CloudConnection{ID: fakeConnID, Created: true}); len(created) != 0 {
+		t.Fatalf("a new connection (or one that came back from disconnect) should not warn, got %v", created)
+	}
+}
+
+func TestRegisterFailedMessages(t *testing.T) {
+	var tooOld, other diag.Diagnostics
+	registerFailed(&tooOld, "1.0.0", &traceforce.APIError{StatusCode: 426, Code: traceforce.CodeCollectorTooOld})
+	registerFailed(&other, "1.0.0", errors.New("HTTP 500: boom"))
+	if tooOld.Errors()[0].Summary() != "Collector bundle too old" || other.Errors()[0].Summary() != "Error registering cloud connection" {
+		t.Fatalf("got %v / %v", tooOld, other)
+	}
 }
 
 func TestAccCloudConnectionReplacedDuringUpdate(t *testing.T) {
@@ -308,10 +255,18 @@ func TestAccCloudConnectionReplacedDuringUpdate(t *testing.T) {
 		Steps: []resource.TestStep{
 			{Config: collectorConfig(endpoint, "1.2.0")},
 			{
-				// The row was replaced in Traceforce between refresh and apply.
+				// The row was replaced in Traceforce between refresh and apply: an error, and the new id is saved.
 				PreConfig:   func() { f.mu.Lock(); f.reissue = otherConnID; f.mu.Unlock() },
 				Config:      collectorConfig(endpoint, "1.3.0"),
-				ExpectError: regexp.MustCompile(`Cloud connection was replaced`),
+				ExpectError: regexp.MustCompile(`Cloud connection was registered again`),
+			},
+			{
+				// The next apply finds the new connection: nothing to register (so no takeover warning).
+				Config: collectorConfig(endpoint, "1.3.0"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction(conn, plancheck.ResourceActionNoop),
+				}},
+				Check: resource.TestCheckResourceAttr(conn, "id", otherConnID),
 			},
 		},
 	})
@@ -348,10 +303,17 @@ func TestAccCloudConnectionUnknownCloud(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			{Config: connectionConfig(endpoint, "gcp", "p", "1.2.0"), ExpectError: regexp.MustCompile(`provider_name must be one of aws, m365`)},
+			{Config: connectionConfig(endpoint, "gcp", "p", "1.2.0", "Test"), ExpectError: regexp.MustCompile(`provider_name must be one of aws, m365`)},
 		},
 	})
 	if len(f.posts) != 0 {
 		t.Fatalf("nothing should be sent, got %d registrations", len(f.posts))
 	}
+}
+
+func expectEqual(got, want any) error {
+	if got != want {
+		return fmt.Errorf("got %v, want %v", got, want)
+	}
+	return nil
 }

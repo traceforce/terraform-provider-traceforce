@@ -6,15 +6,13 @@ package provider
 import (
 	"fmt"
 	"os"
-	"regexp"
-	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
-	"github.com/hashicorp/terraform-plugin-testing/tfversion"
 )
 
 const (
@@ -49,9 +47,67 @@ func testAccPreCheck(t *testing.T) {
 	}
 }
 
-// Login choice (api_key or client_id + client_secret), against the fake API of
-// cloud_connection_resource_test.go. A value in the configuration beats the
-// environment; both kinds at the same level is an error.
+// Login choice (api_key or client_id + client_secret): resolveLogin is a pure
+// function, tested with a table; two end-to-end cases check that the chosen
+// login reaches the API (fake_cloud_api_test.go).
+
+func TestResolveLogin(t *testing.T) {
+	set := types.StringValue
+	null := types.StringNull()
+	unknown := types.StringUnknown()
+	cfg := func(apiKey, clientID, secret, device, endpoint types.String) traceforceProviderModel {
+		return traceforceProviderModel{ApiKey: apiKey, ClientID: clientID, ClientSecret: secret, DeviceID: device, Endpoint: endpoint}
+	}
+	empty := cfg(null, null, null, null, null)
+	for _, tc := range []struct {
+		name   string
+		config traceforceProviderModel
+		env    map[string]string
+		want   providerLogin
+		errSum string // the error, or "" for none
+	}{
+		{"api_key in the configuration", cfg(set("k"), null, null, null, null), nil, providerLogin{apiKey: "k"}, ""},
+		{"api_key in the configuration beats TRACEFORCE_CLIENT_ID", cfg(set("k"), null, null, null, null),
+			map[string]string{"TRACEFORCE_CLIENT_ID": "c", "TRACEFORCE_CLIENT_SECRET": "s"}, providerLogin{apiKey: "k", clientSecret: "s"}, ""},
+		{"client_id in the configuration beats TRACEFORCE_API_KEY", cfg(null, set("c"), set("s"), set("cloud-collector-aws"), null),
+			map[string]string{"TRACEFORCE_API_KEY": "k"}, providerLogin{clientID: "c", clientSecret: "s", deviceID: "cloud-collector-aws"}, ""},
+		{"client login from the environment", empty,
+			map[string]string{"TRACEFORCE_CLIENT_ID": "c", "TRACEFORCE_CLIENT_SECRET": "s", "TRACEFORCE_DEVICE_ID": "cloud-collector-m365"},
+			providerLogin{clientID: "c", clientSecret: "s", deviceID: "cloud-collector-m365"}, ""},
+		{"api_key from the environment, as before", empty, map[string]string{"TRACEFORCE_API_KEY": "k"}, providerLogin{apiKey: "k"}, ""},
+		{"secret, device and endpoint: configuration beats environment", cfg(null, set("c"), set("s1"), set("d1"), set("https://a")),
+			map[string]string{"TRACEFORCE_CLIENT_SECRET": "s2", "TRACEFORCE_DEVICE_ID": "d2", "TRACEFORCE_ENDPOINT": "https://b"},
+			providerLogin{clientID: "c", clientSecret: "s1", deviceID: "d1", endpoint: "https://a"}, ""},
+		{"an empty configured value falls back to the environment", cfg(set(""), null, null, null, set("")),
+			map[string]string{"TRACEFORCE_API_KEY": "k", "TRACEFORCE_ENDPOINT": "https://b"}, providerLogin{apiKey: "k", endpoint: "https://b"}, ""},
+		{"both in the configuration", cfg(set("k"), set("c"), set("s"), null, null), nil, providerLogin{}, "Two Traceforce logins"},
+		{"both in the environment", empty, map[string]string{"TRACEFORCE_API_KEY": "k", "TRACEFORCE_CLIENT_ID": "c", "TRACEFORCE_CLIENT_SECRET": "s"},
+			providerLogin{}, "Two Traceforce logins"},
+		{"no login", empty, nil, providerLogin{}, "Missing Traceforce API key"},
+		{"client_id without a secret", cfg(null, set("c"), null, null, null), nil, providerLogin{}, "Missing Traceforce client secret"},
+		{"unknown endpoint", cfg(set("k"), null, null, null, unknown), nil, providerLogin{}, "Unknown Traceforce API endpoint"},
+		{"unknown api_key", cfg(unknown, null, null, null, null), nil, providerLogin{}, "Unknown Traceforce API key"},
+		{"unknown client_id", cfg(null, unknown, set("s"), null, null), nil, providerLogin{}, "Unknown Traceforce client ID"},
+		{"unknown client_secret", cfg(null, set("c"), unknown, null, null), nil, providerLogin{}, "Unknown Traceforce client secret"},
+		{"unknown device_id", cfg(null, set("c"), set("s"), unknown, null), nil, providerLogin{}, "Unknown Traceforce device ID"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, diags := resolveLogin(tc.config, func(k string) string { return tc.env[k] })
+			if tc.errSum != "" {
+				if !diags.HasError() || diags.Errors()[0].Summary() != tc.errSum {
+					t.Fatalf("want error %q, got %v", tc.errSum, diags)
+				}
+				return
+			}
+			if diags.HasError() {
+				t.Fatalf("unexpected error: %v", diags)
+			}
+			if got != tc.want {
+				t.Fatalf("got %+v, want %+v", got, tc.want)
+			}
+		})
+	}
+}
 
 const loginResource = `
 resource "traceforce_cloud_connection" "test" {
@@ -61,104 +117,37 @@ resource "traceforce_cloud_connection" "test" {
 }
 `
 
-// clearLoginEnv starts a test with no TRACEFORCE_* login variables.
-func clearLoginEnv(t *testing.T) {
-	for _, v := range []string{"TRACEFORCE_API_KEY", "TRACEFORCE_CLIENT_ID", "TRACEFORCE_CLIENT_SECRET", "TRACEFORCE_DEVICE_ID"} {
-		t.Setenv(v, "")
-	}
-}
-
-func loginStep(endpoint, settings string) resource.TestStep {
-	return resource.TestStep{Config: fmt.Sprintf("provider \"traceforce\" {\n  endpoint = %q\n%s\n}\n", endpoint, settings) + loginResource}
-}
-
-// usedLogin says how the fake API was called: "client <device id>" or "api_key".
-func (f *fakeAPI) usedLogin() string {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if len(f.logins) > 0 && f.auths[0] == "Bearer tok" {
-		return fmt.Sprintf("client %v", f.logins[0]["device_id"])
-	}
-	if len(f.auths) > 0 && f.auths[0] == "Bearer "+fakeAPIKey {
-		return "api_key"
-	}
-	return "none"
-}
-
-func expectLogin(f *fakeAPI, want string) func() error {
-	return func() error {
-		if got := f.usedLogin(); got != want {
-			return fmt.Errorf("logged in with %s, want %s", got, want)
-		}
-		return nil
-	}
-}
-
 func TestAccProviderLogin(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		env      map[string]string
 		settings string
-		want     string // how the API was called, or the error
+		want     string // how the fake API was called
 	}{
-		{"api_key in the configuration beats TRACEFORCE_CLIENT_ID",
+		{"a configured api_key is sent even with TRACEFORCE_CLIENT_ID exported",
 			map[string]string{"TRACEFORCE_CLIENT_ID": "client-1", "TRACEFORCE_CLIENT_SECRET": "secret-1"},
 			`api_key = "` + fakeAPIKey + `"`, "api_key"},
-		{"client_id in the configuration beats TRACEFORCE_API_KEY",
-			map[string]string{"TRACEFORCE_API_KEY": fakeAPIKey},
-			`client_id = "client-1"` + "\n" + `client_secret = "secret-1"` + "\n" + `device_id = "cloud-collector-aws"`, "client cloud-collector-aws"},
-		{"client login from the environment",
+		{"a client login from the environment logs in with its device id",
 			map[string]string{"TRACEFORCE_CLIENT_ID": "client-1", "TRACEFORCE_CLIENT_SECRET": "secret-1", "TRACEFORCE_DEVICE_ID": "cloud-collector-m365"},
 			``, "client cloud-collector-m365"},
-		{"device_id in the configuration beats TRACEFORCE_DEVICE_ID",
-			map[string]string{"TRACEFORCE_DEVICE_ID": "cloud-collector-m365"},
-			`client_id = "client-1"` + "\n" + `client_secret = "secret-1"` + "\n" + `device_id = "cloud-collector-aws"`, "client cloud-collector-aws"},
-		{"api_key from the environment, as before", map[string]string{"TRACEFORCE_API_KEY": fakeAPIKey}, ``, "api_key"},
-		{"both in the configuration", nil, `api_key = "k"` + "\n" + `client_id = "c"` + "\n" + `client_secret = "s"`, "error:Two Traceforce logins"},
-		{"both in the environment", map[string]string{"TRACEFORCE_API_KEY": "k", "TRACEFORCE_CLIENT_ID": "c", "TRACEFORCE_CLIENT_SECRET": "s"}, ``, "error:Two Traceforce logins"},
-		{"no login", nil, ``, "error:Missing Traceforce API key"},
-		{"client_id without a secret", nil, `client_id = "c"`, "error:Missing Traceforce client secret"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			clearLoginEnv(t)
-			for k, v := range tc.env {
-				t.Setenv(k, v)
+			for _, v := range []string{"TRACEFORCE_API_KEY", "TRACEFORCE_CLIENT_ID", "TRACEFORCE_CLIENT_SECRET", "TRACEFORCE_DEVICE_ID"} {
+				t.Setenv(v, tc.env[v])
 			}
 			f, endpoint := newFakeAPI(t)
-			step := loginStep(endpoint, tc.settings)
-			if msg, isErr := strings.CutPrefix(tc.want, "error:"); isErr {
-				step.ExpectError = regexp.MustCompile(msg)
-			} else {
-				step.Check = func(*terraform.State) error { return expectLogin(f, tc.want)() }
-			}
-			resource.Test(t, resource.TestCase{ProtoV6ProviderFactories: testAccProtoV6ProviderFactories, Steps: []resource.TestStep{step}})
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{{
+					Config: fmt.Sprintf("provider \"traceforce\" {\n  endpoint = %q\n%s\n}\n", endpoint, tc.settings) + loginResource,
+					Check: func(*terraform.State) error {
+						if got := f.usedLogin(); got != tc.want {
+							return fmt.Errorf("logged in with %s, want %s", got, tc.want)
+						}
+						return nil
+					},
+				}},
+			})
 		})
 	}
-}
-
-func TestAccProviderUnknownLoginValue(t *testing.T) {
-	clearLoginEnv(t)
-	_, endpoint := newFakeAPI(t)
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		// terraform_data is built into Terraform 1.4 and later.
-		TerraformVersionChecks: []tfversion.TerraformVersionCheck{tfversion.SkipBelow(tfversion.Version1_4_0)},
-		Steps: []resource.TestStep{
-			{
-				// The secret comes from a resource created in the same apply: unknown at plan time.
-				Config: fmt.Sprintf(`
-resource "terraform_data" "secret" {
-  input = "secret-1"
-}
-
-provider "traceforce" {
-  endpoint      = %q
-  client_id     = "client-1"
-  client_secret = terraform_data.secret.output
-}
-`, endpoint) + loginResource,
-				ExpectError: regexp.MustCompile(`Unknown Traceforce client secret`),
-			},
-		},
-	})
 }
