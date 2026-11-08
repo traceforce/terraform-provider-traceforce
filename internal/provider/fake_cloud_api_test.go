@@ -42,6 +42,7 @@ type fakeAPI struct {
 	oldBackend         bool // no deployment routes: a plain 404 without the API's code
 	putOmitsDeployedAt bool // PUT answers without deployedAt
 	sortsRegions       bool // the backend stores regions sorted (a different order than sent)
+	deleteDeployment   int  // DELETE deployment answers: 0 normally, 404 "connection not found", 405 a backend without the route
 }
 
 func newFakeAPI(t *testing.T) (*fakeAPI, string) {
@@ -151,6 +152,10 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 			f.row["deployedAt"] = nil
 		}
 		reply(w, 200, f.row)
+	case r.Method == http.MethodDelete && path == conn+"/deployment" && f.deleteDeployment == 404:
+		reply(w, 404, notFound)
+	case r.Method == http.MethodDelete && path == conn+"/deployment" && f.deleteDeployment == 405:
+		w.WriteHeader(405)
 	case r.Method == http.MethodDelete && path == conn+"/deployment":
 		f.calls = append(f.calls, "DELETE deployment")
 		f.row["collectorId"], f.row["identityId"], f.row["deployedAt"] = nil, nil, nil

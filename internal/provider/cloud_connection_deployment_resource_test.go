@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 // These tests run against the fake Traceforce API (fake_cloud_api_test.go).
@@ -246,6 +247,45 @@ func TestAccCloudConnectionDeploymentNotRecorded(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{Config: deploymentConfig(endpoint, lambdaA, ""), ExpectError: regexp.MustCompile(`without\s+deployedAt`)},
+		},
+	})
+}
+
+func TestAccCloudConnectionDeploymentDeleteWhenConnectionGone(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: deploymentConfig(endpoint, lambdaA, "")},
+			{
+				// The connection went away between the refresh and the delete: nothing to clear, no error.
+				PreConfig: func() { f.mu.Lock(); f.deleteDeployment = 404; f.mu.Unlock() },
+				Config:    collectorConfig(endpoint, "1.2.0"),
+				Check: func(s *terraform.State) error {
+					if _, kept := s.RootModule().Resources[deployment]; kept {
+						return fmt.Errorf("the deployment is still in the state")
+					}
+					return nil
+				},
+			},
+		},
+	})
+}
+
+func TestAccCloudConnectionDeploymentDeleteOnOldBackend(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: deploymentConfig(endpoint, lambdaA, "")},
+			{
+				// A backend without the DELETE route (405): stopped with the hint, not reported as done.
+				PreConfig:   func() { f.mu.Lock(); f.deleteDeployment = 405; f.mu.Unlock() },
+				Config:      collectorConfig(endpoint, "1.2.0"),
+				ExpectError: regexp.MustCompile(`Update\s+the\s+Traceforce\s+backend`),
+			},
+			// Fixed backend: the next apply clears it.
+			{PreConfig: func() { f.mu.Lock(); f.deleteDeployment = 0; f.mu.Unlock() }, Config: collectorConfig(endpoint, "1.2.0")},
 		},
 	})
 }
