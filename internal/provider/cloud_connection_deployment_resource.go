@@ -109,8 +109,9 @@ func backendHint(err error) string {
 // record sends the deployment (create and update) and keeps deployed_at from the answer.
 func (r *cloudConnectionDeploymentResource) record(ctx context.Context, plan *cloudConnectionDeploymentResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
-	var regions []string // nil (left out): none sent, the stored ones are kept
-	diags.Append(plan.Regions.ElementsAs(ctx, &regions, false)...) // known at apply (not computed)
+	// Known at apply (not computed); nil when left out: none sent, the stored ones are kept.
+	var regions []string
+	diags.Append(plan.Regions.ElementsAs(ctx, &regions, false)...)
 	if diags.HasError() {
 		return diags
 	}
