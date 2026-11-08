@@ -113,10 +113,17 @@ func (r *cloudConnectionResource) Schema(_ context.Context, _ resource.SchemaReq
 	}
 }
 
-// ValidateConfig refuses a cloud without a collector before anything is sent.
+// ValidateConfig refuses a cloud without a collector, and an empty
+// module_commit (Traceforce stores no commit, so it would never match),
+// before anything is sent.
 func (r *cloudConnectionResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var cloud types.String
+	var cloud, commit types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("provider_name"), &cloud)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("module_commit"), &commit)...)
+	if !commit.IsNull() && !commit.IsUnknown() && commit.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(path.Root("module_commit"), "Empty module_commit",
+			"Set a commit, or leave module_commit out (e.g. module_commit = var.commit == \"\" ? null : var.commit).")
+	}
 	if cloud.IsNull() || cloud.IsUnknown() {
 		return
 	}
@@ -142,24 +149,33 @@ func statusName(s traceforce.CloudConnectionStatus) string {
 	return "unknown"
 }
 
-// fromAPI copies what Traceforce stores into the model. The account is kept as
-// written when it differs only in case (Traceforce stores it in lowercase), so
-// it does not plan a replacement. The name is only filled when the model has
-// none (import): the collector's uploads may replace it.
-func fromAPI(m *cloudConnectionResourceModel, conn *traceforce.CloudConnection) {
+// fromAnswer fills what Traceforce decides (id, status) after a register;
+// the configured values stay as planned, so Terraform never sees a planned
+// value change. The name is filled only when it is not configured (computed).
+func fromAnswer(m *cloudConnectionResourceModel, conn *traceforce.CloudConnection) {
 	m.ID = types.StringValue(conn.ID)
+	m.Status = types.StringValue(statusName(conn.Status))
+	if m.Name.IsUnknown() {
+		m.Name = types.StringPointerValue(conn.Name)
+	}
+}
+
+// fromAPI refreshes the model with what Traceforce stores (Read and import),
+// so a change made elsewhere shows in the next plan. The account is kept as
+// written when it differs only in case (Traceforce stores it in lowercase).
+// The name is only filled when the model has none (import): the collector's
+// uploads may replace it, so refreshing it would plan a change on every run.
+func fromAPI(m *cloudConnectionResourceModel, conn *traceforce.CloudConnection) {
 	m.ProviderName = types.StringValue(conn.Provider)
 	if !strings.EqualFold(m.Account.ValueString(), conn.Account) {
 		m.Account = types.StringValue(conn.Account)
 	}
-	if (m.Name.IsNull() || m.Name.IsUnknown()) && conn.Name != nil {
-		m.Name = types.StringValue(*conn.Name)
-	} else if m.Name.IsUnknown() {
-		m.Name = types.StringNull()
+	if m.Name.IsNull() || m.Name.IsUnknown() {
+		m.Name = types.StringPointerValue(conn.Name)
 	}
 	m.ModuleVersion = types.StringPointerValue(conn.ModuleVersion)
 	m.ModuleCommit = types.StringPointerValue(conn.ModuleCommit)
-	m.Status = types.StringValue(statusName(conn.Status))
+	fromAnswer(m, conn)
 }
 
 // register sends the plan to Traceforce, for create and update alike: the API
@@ -225,7 +241,7 @@ func (r *cloudConnectionResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 	resp.Diagnostics.Append(takenOver(conn)...)
-	fromAPI(&plan, conn)
+	fromAnswer(&plan, conn)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
@@ -262,7 +278,7 @@ func (r *cloudConnectionResource) Update(ctx context.Context, req resource.Updat
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	fromAPI(&plan, conn)
+	fromAnswer(&plan, conn)
 	// The connection was removed in Traceforce after the last refresh, so the
 	// API registered the account again under a new id. Terraform does not allow
 	// a new id in an update, so this apply fails; the new connection is saved
