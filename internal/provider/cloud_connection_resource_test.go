@@ -317,3 +317,42 @@ func expectEqual(got, want any) error {
 	}
 	return nil
 }
+
+func TestAccCloudConnectionNameIsNotRefreshed(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{Config: collectorConfig(endpoint, "1.2.0")},
+			{
+				// The collector's upload renamed the connection: not a change for this configuration.
+				PreConfig: func() { f.set("name", "collector-name") },
+				Config:    collectorConfig(endpoint, "1.2.0"),
+				PlanOnly:  true,
+			},
+		},
+	})
+}
+
+func TestAccCloudConnectionEmptyModuleCommit(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: collectorProvider(endpoint) + `
+resource "traceforce_cloud_connection" "test" {
+  provider_name  = "aws"
+  account        = "111111111111"
+  module_version = "1.2.0"
+  module_commit  = ""
+}
+`,
+				ExpectError: regexp.MustCompile(`Empty module_commit`),
+			},
+		},
+	})
+	if len(f.posts) != 0 {
+		t.Fatalf("nothing should be sent, got %d registrations", len(f.posts))
+	}
+}
