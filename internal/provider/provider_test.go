@@ -81,8 +81,9 @@ func TestResolveLogin(t *testing.T) {
 		{"an empty configured value falls back to the environment", cfg(set(""), null, null, null, set("")),
 			map[string]string{"TRACEFORCE_API_KEY": "k", "TRACEFORCE_ENDPOINT": "https://b"}, providerLogin{apiKey: "k", endpoint: "https://b"}, ""},
 		{"both in the configuration", cfg(set("k"), set("c"), set("s"), null, null), nil, providerLogin{}, "Two Traceforce logins"},
-		{"both in the environment", empty, map[string]string{"TRACEFORCE_API_KEY": "k", "TRACEFORCE_CLIENT_ID": "c", "TRACEFORCE_CLIENT_SECRET": "s"},
-			providerLogin{}, "Two Traceforce logins"},
+		{"both in the environment: TRACEFORCE_API_KEY, as before (with a warning)", empty,
+			map[string]string{"TRACEFORCE_API_KEY": "k", "TRACEFORCE_CLIENT_ID": "c", "TRACEFORCE_CLIENT_SECRET": "s"},
+			providerLogin{apiKey: "k", clientSecret: "s"}, ""},
 		{"no login", empty, nil, providerLogin{}, "Missing Traceforce API key"},
 		{"client_id without a secret", cfg(null, set("c"), null, null, null), nil, providerLogin{}, "Missing Traceforce client secret"},
 		{"unknown endpoint", cfg(set("k"), null, null, null, unknown), nil, providerLogin{}, "Unknown Traceforce API endpoint"},
@@ -101,6 +102,9 @@ func TestResolveLogin(t *testing.T) {
 			}
 			if diags.HasError() {
 				t.Fatalf("unexpected error: %v", diags)
+			}
+			if bothInEnv := tc.env["TRACEFORCE_API_KEY"] != "" && tc.env["TRACEFORCE_CLIENT_ID"] != "" && tc.config.ApiKey.ValueString() == "" && tc.config.ClientID.ValueString() == ""; bothInEnv != (diags.WarningsCount() == 1) {
+				t.Fatalf("warning only when both logins are in the environment, got %v", diags)
 			}
 			if got != tc.want {
 				t.Fatalf("got %+v, want %+v", got, tc.want)
@@ -127,6 +131,9 @@ func TestAccProviderLogin(t *testing.T) {
 		{"a configured api_key is sent even with TRACEFORCE_CLIENT_ID exported",
 			map[string]string{"TRACEFORCE_CLIENT_ID": "client-1", "TRACEFORCE_CLIENT_SECRET": "secret-1"},
 			`api_key = "` + fakeAPIKey + `"`, "api_key"},
+		{"both logins in the environment use TRACEFORCE_API_KEY, as before",
+			map[string]string{"TRACEFORCE_API_KEY": fakeAPIKey, "TRACEFORCE_CLIENT_ID": "client-1", "TRACEFORCE_CLIENT_SECRET": "secret-1"},
+			``, "api_key"},
 		{"a client login from the environment logs in with its device id",
 			map[string]string{"TRACEFORCE_CLIENT_ID": "client-1", "TRACEFORCE_CLIENT_SECRET": "secret-1", "TRACEFORCE_DEVICE_ID": "cloud-collector-m365"},
 			``, "client cloud-collector-m365"},
