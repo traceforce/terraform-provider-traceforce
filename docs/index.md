@@ -4,10 +4,6 @@ page_title: "traceforce Provider"
 subcategory: ""
 description: |-
   Manages Traceforce resources.
-  Authentication
-  Log in one of two ways:
-  api_key (or TRACEFORCE_API_KEY): an API key.client_id + client_secret (or TRACEFORCE_CLIENT_ID + TRACEFORCE_CLIENT_SECRET): one of your Traceforce API clients (Settings → API Clients). The provider gets a token at every run. device_id (or TRACEFORCE_DEVICE_ID) says who the token is for, e.g. cloud-collector-aws for the cloud collector.
-  A value in the provider block wins over its environment variable, also across the two ways: a configured api_key is used even when TRACEFORCE_CLIENT_ID is exported. Both ways in the provider block is an error. Both in the environment (TRACEFORCE_API_KEY and TRACEFORCE_CLIENT_ID): TRACEFORCE_API_KEY is used, with a warning.
 ---
 
 # traceforce Provider
@@ -21,7 +17,9 @@ Log in one of two ways:
 - `api_key` (or `TRACEFORCE_API_KEY`): an API key.
 - `client_id` + `client_secret` (or `TRACEFORCE_CLIENT_ID` + `TRACEFORCE_CLIENT_SECRET`): one of your Traceforce API clients (Settings → API Clients). The provider gets a token at every run. `device_id` (or `TRACEFORCE_DEVICE_ID`) says who the token is for, e.g. `cloud-collector-aws` for the cloud collector.
 
-A value in the provider block wins over its environment variable, also across the two ways: a configured `api_key` is used even when `TRACEFORCE_CLIENT_ID` is exported. Both ways in the provider block is an error. Both in the environment (`TRACEFORCE_API_KEY` and `TRACEFORCE_CLIENT_ID`): `TRACEFORCE_API_KEY` is used, with a warning.
+`traceforce_cloud_connection` needs the second way, with `device_id = "cloud-collector-<provider_name>"` (e.g. `cloud-collector-aws` for `provider_name = "aws"`). An `api_key` login, a client login without `device_id`, or the `device_id` of another cloud is refused by Traceforce (HTTP 403), and only at apply.
+
+A value in the provider block wins over its environment variable, also across the two ways: a configured `api_key` is used even when `TRACEFORCE_CLIENT_ID` is exported. Both ways in the provider block is an error. Both in the environment (`TRACEFORCE_API_KEY` and `TRACEFORCE_CLIENT_ID`): `TRACEFORCE_API_KEY` is used, with a warning (so cloud connections fail: set `client_id` in the provider block or unset `TRACEFORCE_API_KEY`).
 
 ## Example Usage
 

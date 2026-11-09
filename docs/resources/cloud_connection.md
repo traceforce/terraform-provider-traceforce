@@ -3,12 +3,12 @@
 page_title: "traceforce_cloud_connection Resource - traceforce"
 subcategory: ""
 description: |-
-  A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy. If this organization already has the account (e.g. from an earlier collector, or a lost state), apply takes that connection over and warns. Import an existing connection with its ID.
+  A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy. If this organization already has the account (e.g. from an earlier collector, or a lost state), apply takes that connection over and warns. Import an existing connection with its ID. Needs the provider to log in with an API client (client_id + client_secret) and device_id = "cloud-collector-<provider_name>" (e.g. cloud-collector-aws for provider_name = "aws"). An api_key login, a client login without device_id, or the device_id of another cloud is refused by Traceforce (HTTP 403) only at apply.
 ---
 
 # traceforce_cloud_connection (Resource)
 
-A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy. If this organization already has the account (e.g. from an earlier collector, or a lost state), apply takes that connection over and warns. Import an existing connection with its ID.
+A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy. If this organization already has the account (e.g. from an earlier collector, or a lost state), apply takes that connection over and warns. Import an existing connection with its ID. Needs the provider to log in with an API client (client_id + client_secret) and device_id = "cloud-collector-<provider_name>" (e.g. cloud-collector-aws for provider_name = "aws"). An api_key login, a client login without device_id, or the device_id of another cloud is refused by Traceforce (HTTP 403) only at apply.
 
 ## Example Usage
 
