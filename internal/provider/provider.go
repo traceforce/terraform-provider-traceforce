@@ -52,16 +52,8 @@ func (p *traceforceProvider) Metadata(ctx context.Context, req provider.Metadata
 
 func (p *traceforceProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "Manages Traceforce resources.\n\n" +
-			"## Authentication\n\n" +
-			"Log in one of two ways:\n\n" +
-			"- `api_key` (or `TRACEFORCE_API_KEY`): an API key.\n" +
-			"- `client_id` + `client_secret` (or `TRACEFORCE_CLIENT_ID` + `TRACEFORCE_CLIENT_SECRET`): one of your " +
-			"Traceforce API clients (Settings → API Clients). The provider gets a token at every run. " +
-			"`device_id` (or `TRACEFORCE_DEVICE_ID`) says who the token is for, e.g. `cloud-collector-aws` for the cloud collector.\n\n" +
-			"A value in the provider block wins over its environment variable, also across the two ways: a configured `api_key` " +
-			"is used even when `TRACEFORCE_CLIENT_ID` is exported. Both ways in the provider block is an error. " +
-			"Both in the environment (`TRACEFORCE_API_KEY` and `TRACEFORCE_CLIENT_ID`): `TRACEFORCE_API_KEY` is used, with a warning.",
+		// The Authentication section of the docs is in templates/index.md.tmpl.
+		MarkdownDescription: "Manages Traceforce resources.",
 		Attributes: map[string]schema.Attribute{
 			"api_key": schema.StringAttribute{
 				Description:         "API key to the service. May also be provided via TRACEFORCE_API_KEY environment variable.",
@@ -220,7 +212,7 @@ func resolveLogin(config traceforceProviderModel, getenv func(string) string) (p
 			login.clientID = ""
 			diags.AddWarning("Two Traceforce logins in the environment",
 				"Both TRACEFORCE_API_KEY and TRACEFORCE_CLIENT_ID are set; the provider uses TRACEFORCE_API_KEY. "+
-					"To log in with the API client, set client_id in the provider block or unset TRACEFORCE_API_KEY.")
+					"traceforce_cloud_connection needs the API client login: set client_id in the provider block or unset TRACEFORCE_API_KEY.")
 		}
 	}
 

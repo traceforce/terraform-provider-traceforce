@@ -65,7 +65,10 @@ func (r *cloudConnectionResource) Schema(_ context.Context, _ resource.SchemaReq
 	resp.Schema = schema.Schema{
 		Description: "A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy. " +
 			"If this organization already has the account (e.g. from an earlier collector, or a lost state), apply takes that " +
-			"connection over and warns. Import an existing connection with its ID.",
+			"connection over and warns. Import an existing connection with its ID. " +
+			"Needs the provider to log in with an API client (client_id + client_secret) and device_id = " +
+			"\"cloud-collector-<provider_name>\" (e.g. cloud-collector-aws for provider_name = \"aws\"). An api_key login, " +
+			"a client login without device_id, or the device_id of another cloud is refused by Traceforce (HTTP 403) only at apply.",
 		Attributes: map[string]schema.Attribute{
 			// "provider" is reserved in Terraform resource blocks.
 			"provider_name": schema.StringAttribute{
@@ -113,16 +116,22 @@ func (r *cloudConnectionResource) Schema(_ context.Context, _ resource.SchemaReq
 	}
 }
 
-// ValidateConfig refuses a cloud without a collector, and an empty
-// module_commit (Traceforce stores no commit, so it would never match),
-// before anything is sent.
+// ValidateConfig refuses, before anything is sent: a cloud without a
+// collector; an empty module_commit (Traceforce stores no commit, so it would
+// never match); an empty name (no name is sent, so the state would keep ""
+// while Traceforce keeps the old name, with no diff ever).
 func (r *cloudConnectionResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var cloud, commit types.String
+	var cloud, commit, name types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("provider_name"), &cloud)...)
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("module_commit"), &commit)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("name"), &name)...)
 	if !commit.IsNull() && !commit.IsUnknown() && commit.ValueString() == "" {
 		resp.Diagnostics.AddAttributeError(path.Root("module_commit"), "Empty module_commit",
 			"Set a commit, or leave module_commit out (e.g. module_commit = var.commit == \"\" ? null : var.commit).")
+	}
+	if !name.IsNull() && !name.IsUnknown() && name.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(path.Root("name"), "Empty name",
+			"Set a name, or leave name out to keep the current name.")
 	}
 	if cloud.IsNull() || cloud.IsUnknown() {
 		return

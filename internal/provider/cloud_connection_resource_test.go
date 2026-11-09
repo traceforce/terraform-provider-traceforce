@@ -11,6 +11,9 @@ import (
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	fwresource "github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	traceforce "github.com/traceforce/traceforce-go-sdk"
@@ -229,13 +232,39 @@ func TestAccCloudConnectionAlreadyRegistered(t *testing.T) {
 	})
 }
 
-func TestTakenOverWarnsOnlyForAnExistingConnection(t *testing.T) {
-	existing := takenOver(&traceforce.CloudConnection{ID: fakeConnID, Provider: "aws", Account: "111111111111", Created: false})
-	if existing.WarningsCount() != 1 || existing.Warnings()[0].Summary() != "Cloud connection already registered" {
-		t.Fatalf("an existing connection should warn once, got %v", existing)
-	}
-	if created := takenOver(&traceforce.CloudConnection{ID: fakeConnID, Created: true}); len(created) != 0 {
-		t.Fatalf("a new connection (or one that came back from disconnect) should not warn, got %v", created)
+// Create is called directly (the test framework does not show warnings), against
+// the fake API: only an account registered before (created: false) warns.
+func TestCreateWarnsOnlyForAnExistingConnection(t *testing.T) {
+	for _, existing := range []bool{true, false} {
+		t.Run(fmt.Sprintf("existing=%v", existing), func(t *testing.T) {
+			ctx := t.Context()
+			f, endpoint := newFakeAPI(t)
+			f.existing = existing
+			client, err := traceforce.NewClient(fakeAPIKey, endpoint, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := &cloudConnectionResource{client: client}
+			var s fwresource.SchemaResponse
+			r.Schema(ctx, fwresource.SchemaRequest{}, &s)
+			plan := tfsdk.Plan{Schema: s.Schema}
+			if diags := plan.Set(ctx, &cloudConnectionResourceModel{
+				ID: types.StringUnknown(), ProviderName: types.StringValue("aws"), Account: types.StringValue("111111111111"),
+				Name: types.StringValue("Test"), ModuleVersion: types.StringValue("1.2.0"), ModuleCommit: types.StringNull(),
+				Status: types.StringUnknown(),
+			}); diags.HasError() {
+				t.Fatal(diags)
+			}
+			resp := fwresource.CreateResponse{State: tfsdk.State{Schema: s.Schema}}
+			r.Create(ctx, fwresource.CreateRequest{Plan: plan, Config: tfsdk.Config{Schema: s.Schema, Raw: plan.Raw}}, &resp)
+			if resp.Diagnostics.HasError() {
+				t.Fatal(resp.Diagnostics)
+			}
+			warned := resp.Diagnostics.WarningsCount() == 1 && resp.Diagnostics.Warnings()[0].Summary() == "Cloud connection already registered"
+			if warned != existing || resp.Diagnostics.WarningsCount() > 1 {
+				t.Fatalf("existing=%v: want the takeover warning only for an existing connection, got %v", existing, resp.Diagnostics)
+			}
+		})
 	}
 }
 
@@ -334,25 +363,30 @@ func TestAccCloudConnectionNameIsNotRefreshed(t *testing.T) {
 	})
 }
 
-func TestAccCloudConnectionEmptyModuleCommit(t *testing.T) {
-	f, endpoint := newFakeAPI(t)
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{
-				Config: collectorProvider(endpoint) + `
+// An empty module_commit or name is refused at plan, before anything is sent.
+func TestAccCloudConnectionEmptyValue(t *testing.T) {
+	for _, attr := range []string{"module_commit", "name"} {
+		t.Run(attr, func(t *testing.T) {
+			f, endpoint := newFakeAPI(t)
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					{
+						Config: collectorProvider(endpoint) + fmt.Sprintf(`
 resource "traceforce_cloud_connection" "test" {
   provider_name  = "aws"
   account        = "111111111111"
   module_version = "1.2.0"
-  module_commit  = ""
+  %s = ""
 }
-`,
-				ExpectError: regexp.MustCompile(`Empty module_commit`),
-			},
-		},
-	})
-	if len(f.posts) != 0 {
-		t.Fatalf("nothing should be sent, got %d registrations", len(f.posts))
+`, attr),
+						ExpectError: regexp.MustCompile(`Empty ` + attr),
+					},
+				},
+			})
+			if len(f.posts) != 0 {
+				t.Fatalf("nothing should be sent, got %d registrations", len(f.posts))
+			}
+		})
 	}
 }
