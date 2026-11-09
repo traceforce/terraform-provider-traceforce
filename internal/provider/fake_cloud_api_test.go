@@ -64,6 +64,16 @@ func (f *fakeAPI) set(key string, value any) {
 	f.row[key] = value
 }
 
+// with changes the fake's settings under its lock, e.g. f.with(func() { f.deleteDeployment = 405 }).
+func (f *fakeAPI) with(change func()) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	change()
+}
+
+// lastPut is the body of the newest PUT (call under the fake's lock, e.g. in f.expect).
+func (f *fakeAPI) lastPut() map[string]any { return f.puts[len(f.puts)-1] }
+
 // expect checks what the fake API saw, under its lock.
 func (f *fakeAPI) expect(check func() error) func(*terraform.State) error {
 	return func(*terraform.State) error {

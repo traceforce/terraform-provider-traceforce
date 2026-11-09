@@ -73,8 +73,9 @@ func (r *cloudConnectionDeploymentResource) Schema(_ context.Context, _ resource
 				Required:    true,
 			},
 			"regions": schema.SetAttribute{
-				Description: "AWS Regions the collector reads (AWS only, at least one; order does not matter). " +
-					"Sent only when set: leaving it out keeps the regions Traceforce has, which the collector's uploads may also update.",
+				Description: "AWS Regions to send to Traceforce (AWS only, at least one; order does not matter). " +
+					"Sent on create, and on each update when set. Terraform does not read them back, so a change made in " +
+					"Traceforce or by the collector's uploads does not show in the plan. Leaving it out keeps the regions Traceforce has.",
 				Optional:    true,
 				ElementType: types.StringType,
 			},
@@ -86,13 +87,24 @@ func (r *cloudConnectionDeploymentResource) Schema(_ context.Context, _ resource
 	}
 }
 
-// ValidateConfig refuses an empty regions set: it would not clear the stored regions.
+// ValidateConfig refuses an empty regions set (it would not clear the stored
+// regions) and a null or empty region (it would fail or send "" at apply).
 func (r *cloudConnectionDeploymentResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var regions types.Set
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("regions"), &regions)...)
-	if !regions.IsNull() && !regions.IsUnknown() && len(regions.Elements()) == 0 {
+	if regions.IsNull() || regions.IsUnknown() {
+		return
+	}
+	if len(regions.Elements()) == 0 {
 		resp.Diagnostics.AddAttributeError(path.Root("regions"), "Empty regions",
 			"Set at least one region, or leave regions out (the stored regions are kept).")
+	}
+	for _, e := range regions.Elements() {
+		if s, ok := e.(types.String); ok && !s.IsUnknown() && (s.IsNull() || s.ValueString() == "") {
+			resp.Diagnostics.AddAttributeError(path.Root("regions"), "Empty region",
+				"Each region must be a non-empty string, for example \"us-east-1\".")
+			return
+		}
 	}
 }
 

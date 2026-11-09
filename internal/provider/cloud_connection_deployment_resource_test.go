@@ -40,9 +40,6 @@ func regionsLine(regions ...string) string {
 	return fmt.Sprintf("  regions = [%s]", `"`+strings.Join(regions, `", "`)+`"`)
 }
 
-// lastPut is the body of the newest PUT (call under the fake's lock).
-func (f *fakeAPI) lastPut() map[string]any { return f.puts[len(f.puts)-1] }
-
 func planAction(action plancheck.ResourceActionType) resource.ConfigPlanChecks {
 	return resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{plancheck.ExpectResourceAction(deployment, action)}}
 }
@@ -79,30 +76,6 @@ func TestAccCloudConnectionDeploymentLifecycle(t *testing.T) {
 				}),
 			},
 			{
-				// The collector changed elsewhere: the plan records ours again.
-				PreConfig:          func() { f.set("collectorId", lambdaA) },
-				Config:             deploymentConfig(endpoint, lambdaB, east),
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: true,
-			},
-			{
-				// The identity changed elsewhere: too.
-				PreConfig:          func() { f.set("collectorId", lambdaB); f.set("identityId", "arn:aws:iam::111111111111:role/Other") },
-				Config:             deploymentConfig(endpoint, lambdaB, east),
-				PlanOnly:           true,
-				ExpectNonEmptyPlan: true,
-			},
-			{
-				// Cleared in Traceforce: the next apply records it again.
-				PreConfig: func() {
-					f.set("identityId", "arn:aws:iam::111111111111:role/R")
-					f.set("deployedAt", nil)
-				},
-				Config:           deploymentConfig(endpoint, lambdaB, east),
-				ConfigPlanChecks: planAction(plancheck.ResourceActionCreate),
-				Check:            resource.TestCheckResourceAttr(deployment, "deployed_at", "2026-10-30T10:00:00Z"),
-			},
-			{
 				// The deployment alone is removed from the configuration: it is cleared in Traceforce.
 				Config: collectorConfig(endpoint, "1.2.0"),
 				Check: f.expect(func() error {
@@ -122,6 +95,43 @@ func TestAccCloudConnectionDeploymentLifecycle(t *testing.T) {
 			return nil
 		}),
 	})
+}
+
+// Each case starts from a fresh deployment and makes ONE change in Traceforce;
+// the next apply records ours again.
+func TestAccCloudConnectionDeploymentDrift(t *testing.T) {
+	role := "arn:aws:iam::111111111111:role/R"
+	for _, tc := range []struct {
+		name   string
+		key    string
+		value  any
+		action plancheck.ResourceActionType
+	}{
+		{"collector changed elsewhere", "collectorId", lambdaB, plancheck.ResourceActionUpdate},
+		{"identity changed elsewhere", "identityId", "arn:aws:iam::111111111111:role/Other", plancheck.ResourceActionUpdate},
+		{"deployment cleared in Traceforce", "deployedAt", nil, plancheck.ResourceActionCreate},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, endpoint := newFakeAPI(t)
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					{Config: deploymentConfig(endpoint, lambdaA, "")},
+					{
+						PreConfig:        func() { f.set(tc.key, tc.value) },
+						Config:           deploymentConfig(endpoint, lambdaA, ""),
+						ConfigPlanChecks: planAction(tc.action),
+						Check: f.expect(func() error {
+							if len(f.puts) != 2 || f.row["collectorId"] != lambdaA || f.row["identityId"] != role || f.row["deployedAt"] == nil {
+								return fmt.Errorf("not recorded again: puts %d, row %v", len(f.puts), f.row)
+							}
+							return nil
+						}),
+					},
+				},
+			})
+		})
+	}
 }
 
 func TestAccCloudConnectionDeploymentWithoutRegions(t *testing.T) {
@@ -219,14 +229,26 @@ resource "traceforce_cloud_connection_deployment" "test" {
 	})
 }
 
+// An empty set, a null region or an empty region is refused at plan, before anything is sent.
 func TestAccCloudConnectionDeploymentEmptyRegions(t *testing.T) {
-	_, endpoint := newFakeAPI(t)
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{Config: deploymentConfig(endpoint, lambdaA, `  regions = []`), ExpectError: regexp.MustCompile(`Empty regions`)},
-		},
-	})
+	for _, tc := range []struct{ regions, err string }{
+		{`[]`, `Empty regions`},
+		{`[null]`, `(?m)Empty region$`},
+		{`[""]`, `(?m)Empty region$`},
+	} {
+		t.Run(tc.regions, func(t *testing.T) {
+			f, endpoint := newFakeAPI(t)
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+				Steps: []resource.TestStep{
+					{Config: deploymentConfig(endpoint, lambdaA, "  regions = "+tc.regions), ExpectError: regexp.MustCompile(tc.err)},
+				},
+			})
+			if len(f.posts) != 0 || len(f.puts) != 0 {
+				t.Fatalf("nothing should be sent, got %d registrations and %d PUTs", len(f.posts), len(f.puts))
+			}
+		})
+	}
 }
 
 func TestAccCloudConnectionDeploymentOldBackend(t *testing.T) {
@@ -259,7 +281,7 @@ func TestAccCloudConnectionDeploymentDeleteWhenConnectionGone(t *testing.T) {
 			{Config: deploymentConfig(endpoint, lambdaA, "")},
 			{
 				// The connection went away between the refresh and the delete: nothing to clear, no error.
-				PreConfig: func() { f.mu.Lock(); f.deleteDeployment = 404; f.mu.Unlock() },
+				PreConfig: func() { f.with(func() { f.deleteDeployment = 404 }) },
 				Config:    collectorConfig(endpoint, "1.2.0"),
 				Check: func(s *terraform.State) error {
 					if _, kept := s.RootModule().Resources[deployment]; kept {
@@ -280,12 +302,12 @@ func TestAccCloudConnectionDeploymentDeleteOnOldBackend(t *testing.T) {
 			{Config: deploymentConfig(endpoint, lambdaA, "")},
 			{
 				// A backend without the DELETE route (405): stopped with the hint, not reported as done.
-				PreConfig:   func() { f.mu.Lock(); f.deleteDeployment = 405; f.mu.Unlock() },
+				PreConfig:   func() { f.with(func() { f.deleteDeployment = 405 }) },
 				Config:      collectorConfig(endpoint, "1.2.0"),
 				ExpectError: regexp.MustCompile(`Update\s+the\s+Traceforce\s+backend`),
 			},
 			// Fixed backend: the next apply clears it.
-			{PreConfig: func() { f.mu.Lock(); f.deleteDeployment = 0; f.mu.Unlock() }, Config: collectorConfig(endpoint, "1.2.0")},
+			{PreConfig: func() { f.with(func() { f.deleteDeployment = 0 }) }, Config: collectorConfig(endpoint, "1.2.0")},
 		},
 	})
 }

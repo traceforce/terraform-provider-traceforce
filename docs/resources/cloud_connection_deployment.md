@@ -32,7 +32,7 @@ resource "traceforce_cloud_connection_deployment" "this" {
 
 ### Optional
 
-- `regions` (Set of String) AWS Regions the collector reads (AWS only, at least one; order does not matter). Sent only when set: leaving it out keeps the regions Traceforce has, which the collector's uploads may also update.
+- `regions` (Set of String) AWS Regions to send to Traceforce (AWS only, at least one; order does not matter). Sent on create, and on each update when set. Terraform does not read them back, so a change made in Traceforce or by the collector's uploads does not show in the plan. Leaving it out keeps the regions Traceforce has.
 
 ### Read-Only
 
