@@ -145,25 +145,12 @@ func (r *cloudConnectionResource) ValidateConfig(ctx context.Context, req resour
 		fmt.Sprintf("provider_name must be one of %s, got %q.", strings.Join(cloudProviders, ", "), cloud.ValueString()))
 }
 
-// statusName is the status as a word.
-func statusName(s traceforce.CloudConnectionStatus) string {
-	switch s {
-	case traceforce.CloudConnectionStatusPending:
-		return "pending"
-	case traceforce.CloudConnectionStatusConnected:
-		return "connected"
-	case traceforce.CloudConnectionStatusFailed:
-		return "failed"
-	}
-	return "unknown"
-}
-
 // fromAnswer fills what Traceforce decides (id, status) after a register;
 // the configured values stay as planned, so Terraform never sees a planned
 // value change. The name is filled only when it is not configured (computed).
 func fromAnswer(m *cloudConnectionResourceModel, conn *traceforce.CloudConnection) {
 	m.ID = types.StringValue(conn.ID)
-	m.Status = types.StringValue(statusName(conn.Status))
+	m.Status = types.StringValue(string(conn.Status))
 	if m.Name.IsUnknown() {
 		m.Name = types.StringPointerValue(conn.Name)
 	}

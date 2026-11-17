@@ -126,7 +126,7 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 			if f.reissue != "" {
 				id, f.reissue = f.reissue, ""
 			}
-			f.row = map[string]any{"id": id, "provider": body["provider"], "status": 1, "name": nil, "regions": []string{}}
+			f.row = map[string]any{"id": id, "provider": body["provider"], "status": "pending", "name": nil, "regions": []string{}}
 		}
 		f.existing = false
 		account, _ := body["account"].(string)

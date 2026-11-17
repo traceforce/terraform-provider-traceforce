@@ -62,7 +62,7 @@ func TestAccCloudConnectionLifecycle(t *testing.T) {
 			},
 			{
 				// Status from Traceforce is refreshed.
-				PreConfig: func() { f.set("status", 2) },
+				PreConfig: func() { f.set("status", "connected") },
 				Config:    collectorConfig(endpoint, "1.3.0"),
 				Check:     resource.TestCheckResourceAttr(conn, "status", "connected"),
 			},
@@ -130,7 +130,7 @@ func TestAccCloudConnectionImportedUppercaseAccount(t *testing.T) {
 				// A connection that exists in Traceforce (lowercase), not yet in any state.
 				PreConfig: func() {
 					f.mu.Lock()
-					f.row = map[string]any{"id": fakeConnID, "provider": "m365", "account": strings.ToLower(upper), "status": 2,
+					f.row = map[string]any{"id": fakeConnID, "provider": "m365", "account": strings.ToLower(upper), "status": "connected",
 						"name": "Test", "moduleVersion": "1.2.0", "moduleCommit": nil, "regions": []string{}}
 					f.mu.Unlock()
 				},
