@@ -214,7 +214,7 @@ func TestAccCloudConnectionDeploymentNewConnectionReplaces(t *testing.T) {
 		Steps: []resource.TestStep{
 			{Config: deploymentConfig(endpoint, lambdaA, "")},
 			{
-				// Another connection id: the deployment is replaced (the fake has no such connection, so the new PUT fails).
+				// Another connection id: the deployment is replaced (the fake has no such connection, so nothing is sent).
 				Config: collectorConfig(endpoint, "1.2.0") + fmt.Sprintf(`
 resource "traceforce_cloud_connection_deployment" "test" {
   connection_id = %q
@@ -223,7 +223,7 @@ resource "traceforce_cloud_connection_deployment" "test" {
 }
 `, otherConnID, lambdaA),
 				ConfigPlanChecks: planAction(plancheck.ResourceActionDestroyBeforeCreate),
-				ExpectError:      regexp.MustCompile(`Error recording cloud connection deployment`),
+				ExpectError:      regexp.MustCompile(`Cloud connection not found`),
 			},
 		},
 	})
@@ -268,7 +268,7 @@ func TestAccCloudConnectionDeploymentNotRecorded(t *testing.T) {
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
-			{Config: deploymentConfig(endpoint, lambdaA, ""), ExpectError: regexp.MustCompile(`without\s+deployedAt`)},
+			{Config: deploymentConfig(endpoint, lambdaA, ""), ExpectError: regexp.MustCompile(`without\s+deployed_at`)},
 		},
 	})
 }

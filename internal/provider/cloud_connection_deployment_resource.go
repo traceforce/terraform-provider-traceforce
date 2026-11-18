@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -118,9 +119,62 @@ func backendHint(err error) string {
 	return ""
 }
 
+// Shapes of collector_id and identity_id per cloud.
+var deploymentIDPatterns = map[string]struct{ collector, identity *regexp.Regexp }{
+	"aws": {
+		collector: regexp.MustCompile(`^arn:aws[a-z-]*:lambda:[a-z0-9-]+:\d{12}:function:[A-Za-z0-9_-]+(:[A-Za-z0-9$_-]+)?$`),
+		identity:  regexp.MustCompile(`^arn:aws[a-z-]*:iam::\d{12}:role/[\w+=,.@/-]+$`),
+	},
+	"m365": {
+		collector: regexp.MustCompile(`(?i)^/subscriptions/[0-9a-f-]{36}/resourceGroups/[^/]+/providers/Microsoft\.Web/sites/[^/]+$`),
+		identity:  regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`),
+	},
+}
+
+// checkForCloud refuses what does not fit the connection's cloud: regions on
+// Microsoft 365, and a collector or identity id of the wrong shape.
+func checkForCloud(cloud string, plan *cloudConnectionDeploymentResourceModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+	if cloud == "m365" && !plan.Regions.IsNull() {
+		diags.AddAttributeError(path.Root("regions"), "Regions are AWS only",
+			"This connection is Microsoft 365: leave regions out.")
+	}
+	p, ok := deploymentIDPatterns[cloud]
+	if !ok {
+		return diags
+	}
+	if !p.collector.MatchString(plan.CollectorID.ValueString()) {
+		diags.AddAttributeError(path.Root("collector_id"), "Invalid collector_id",
+			fmt.Sprintf("For a %s connection collector_id must be %s, got %q.", cloud,
+				map[string]string{"aws": "a Lambda function ARN", "m365": "a Function App resource ID (/subscriptions/…/providers/Microsoft.Web/sites/…)"}[cloud],
+				plan.CollectorID.ValueString()))
+	}
+	if !p.identity.MatchString(plan.IdentityID.ValueString()) {
+		diags.AddAttributeError(path.Root("identity_id"), "Invalid identity_id",
+			fmt.Sprintf("For a %s connection identity_id must be %s, got %q.", cloud,
+				map[string]string{"aws": "an IAM role ARN", "m365": "a managed identity object ID (GUID)"}[cloud],
+				plan.IdentityID.ValueString()))
+	}
+	return diags
+}
+
 // record sends the deployment (create and update) and keeps deployed_at from the answer.
 func (r *cloudConnectionDeploymentResource) record(ctx context.Context, plan *cloudConnectionDeploymentResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
+	// The connection's cloud decides what the deployment may carry.
+	existing, err := r.client.GetCloudConnection(plan.ConnectionID.ValueString())
+	if err != nil {
+		diags.AddError("Error reading cloud connection", err.Error()+backendHint(err))
+		return diags
+	}
+	if existing == nil {
+		diags.AddAttributeError(path.Root("connection_id"), "Cloud connection not found",
+			fmt.Sprintf("Connection %s does not exist in Traceforce (or is disconnected).", plan.ConnectionID.ValueString()))
+		return diags
+	}
+	if diags.Append(checkForCloud(existing.Provider, plan)...); diags.HasError() {
+		return diags
+	}
 	// Known at apply (not computed); nil when left out: none sent, the stored ones are kept.
 	var regions []string
 	diags.Append(plan.Regions.ElementsAs(ctx, &regions, false)...)
@@ -138,7 +192,7 @@ func (r *cloudConnectionDeploymentResource) record(ctx context.Context, plan *cl
 	}
 	if conn.DeployedAt == nil {
 		diags.AddError("Error recording cloud connection deployment",
-			fmt.Sprintf("Traceforce answered connection %s without deployedAt, so the deployment was not recorded.", conn.ID))
+			fmt.Sprintf("Traceforce answered connection %s without deployed_at, so the deployment was not recorded.", conn.ID))
 		return diags
 	}
 	plan.DeployedAt = types.StringValue(conn.DeployedAt.Format(time.RFC3339))
