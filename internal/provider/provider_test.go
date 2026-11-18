@@ -55,10 +55,10 @@ func TestResolveLogin(t *testing.T) {
 	set := types.StringValue
 	null := types.StringNull()
 	unknown := types.StringUnknown()
-	cfg := func(apiKey, clientID, secret, device, endpoint types.String) traceforceProviderModel {
-		return traceforceProviderModel{ApiKey: apiKey, ClientID: clientID, ClientSecret: secret, DeviceID: device, Endpoint: endpoint}
+	cfg := func(apiKey, clientID, secret, endpoint types.String) traceforceProviderModel {
+		return traceforceProviderModel{ApiKey: apiKey, ClientID: clientID, ClientSecret: secret, Endpoint: endpoint}
 	}
-	empty := cfg(null, null, null, null, null)
+	empty := cfg(null, null, null, null)
 	for _, tc := range []struct {
 		name   string
 		config traceforceProviderModel
@@ -67,31 +67,30 @@ func TestResolveLogin(t *testing.T) {
 		errSum string // the error, or "" for none
 		warn   bool   // the "Two Traceforce logins in the environment" warning
 	}{
-		{"api_key in the configuration", cfg(set("k"), null, null, null, null), nil, providerLogin{apiKey: "k"}, "", false},
-		{"api_key in the configuration beats TRACEFORCE_CLIENT_ID", cfg(set("k"), null, null, null, null),
+		{"api_key in the configuration", cfg(set("k"), null, null, null), nil, providerLogin{apiKey: "k"}, "", false},
+		{"api_key in the configuration beats TRACEFORCE_CLIENT_ID", cfg(set("k"), null, null, null),
 			map[string]string{"TRACEFORCE_CLIENT_ID": "c", "TRACEFORCE_CLIENT_SECRET": "s"}, providerLogin{apiKey: "k", clientSecret: "s"}, "", false},
-		{"client_id in the configuration beats TRACEFORCE_API_KEY", cfg(null, set("c"), set("s"), set("cloud-collector-aws"), null),
-			map[string]string{"TRACEFORCE_API_KEY": "k"}, providerLogin{clientID: "c", clientSecret: "s", deviceID: "cloud-collector-aws"}, "", false},
+		{"client_id in the configuration beats TRACEFORCE_API_KEY", cfg(null, set("c"), set("s"), null),
+			map[string]string{"TRACEFORCE_API_KEY": "k"}, providerLogin{clientID: "c", clientSecret: "s"}, "", false},
 		{"client login from the environment", empty,
-			map[string]string{"TRACEFORCE_CLIENT_ID": "c", "TRACEFORCE_CLIENT_SECRET": "s", "TRACEFORCE_DEVICE_ID": "cloud-collector-m365"},
-			providerLogin{clientID: "c", clientSecret: "s", deviceID: "cloud-collector-m365"}, "", false},
+			map[string]string{"TRACEFORCE_CLIENT_ID": "c", "TRACEFORCE_CLIENT_SECRET": "s"},
+			providerLogin{clientID: "c", clientSecret: "s"}, "", false},
 		{"api_key from the environment, as before", empty, map[string]string{"TRACEFORCE_API_KEY": "k"}, providerLogin{apiKey: "k"}, "", false},
-		{"secret, device and endpoint: configuration beats environment", cfg(null, set("c"), set("s1"), set("d1"), set("https://a")),
-			map[string]string{"TRACEFORCE_CLIENT_SECRET": "s2", "TRACEFORCE_DEVICE_ID": "d2", "TRACEFORCE_ENDPOINT": "https://b"},
-			providerLogin{clientID: "c", clientSecret: "s1", deviceID: "d1", endpoint: "https://a"}, "", false},
-		{"an empty configured value falls back to the environment", cfg(set(""), null, null, null, set("")),
+		{"secret and endpoint: configuration beats environment", cfg(null, set("c"), set("s1"), set("https://a")),
+			map[string]string{"TRACEFORCE_CLIENT_SECRET": "s2", "TRACEFORCE_ENDPOINT": "https://b"},
+			providerLogin{clientID: "c", clientSecret: "s1", endpoint: "https://a"}, "", false},
+		{"an empty configured value falls back to the environment", cfg(set(""), null, null, set("")),
 			map[string]string{"TRACEFORCE_API_KEY": "k", "TRACEFORCE_ENDPOINT": "https://b"}, providerLogin{apiKey: "k", endpoint: "https://b"}, "", false},
-		{"both in the configuration", cfg(set("k"), set("c"), set("s"), null, null), nil, providerLogin{}, "Two Traceforce logins", false},
+		{"both in the configuration", cfg(set("k"), set("c"), set("s"), null), nil, providerLogin{}, "Two Traceforce logins", false},
 		{"both in the environment: TRACEFORCE_API_KEY, as before (with a warning)", empty,
 			map[string]string{"TRACEFORCE_API_KEY": "k", "TRACEFORCE_CLIENT_ID": "c", "TRACEFORCE_CLIENT_SECRET": "s"},
 			providerLogin{apiKey: "k", clientSecret: "s"}, "", true},
 		{"no login", empty, nil, providerLogin{}, "Missing Traceforce API key", false},
-		{"client_id without a secret", cfg(null, set("c"), null, null, null), nil, providerLogin{}, "Missing Traceforce client secret", false},
-		{"unknown endpoint", cfg(set("k"), null, null, null, unknown), nil, providerLogin{}, "Unknown Traceforce API endpoint", false},
-		{"unknown api_key", cfg(unknown, null, null, null, null), nil, providerLogin{}, "Unknown Traceforce API key", false},
-		{"unknown client_id", cfg(null, unknown, set("s"), null, null), nil, providerLogin{}, "Unknown Traceforce client ID", false},
-		{"unknown client_secret", cfg(null, set("c"), unknown, null, null), nil, providerLogin{}, "Unknown Traceforce client secret", false},
-		{"unknown device_id", cfg(null, set("c"), set("s"), unknown, null), nil, providerLogin{}, "Unknown Traceforce device ID", false},
+		{"client_id without a secret", cfg(null, set("c"), null, null), nil, providerLogin{}, "Missing Traceforce client secret", false},
+		{"unknown endpoint", cfg(set("k"), null, null, unknown), nil, providerLogin{}, "Unknown Traceforce API endpoint", false},
+		{"unknown api_key", cfg(unknown, null, null, null), nil, providerLogin{}, "Unknown Traceforce API key", false},
+		{"unknown client_id", cfg(null, unknown, set("s"), null), nil, providerLogin{}, "Unknown Traceforce client ID", false},
+		{"unknown client_secret", cfg(null, set("c"), unknown, null), nil, providerLogin{}, "Unknown Traceforce client secret", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, diags := resolveLogin(tc.config, func(k string) string { return tc.env[k] })
@@ -135,12 +134,12 @@ func TestAccProviderLogin(t *testing.T) {
 		{"both logins in the environment use TRACEFORCE_API_KEY, as before",
 			map[string]string{"TRACEFORCE_API_KEY": fakeAPIKey, "TRACEFORCE_CLIENT_ID": "client-1", "TRACEFORCE_CLIENT_SECRET": "secret-1"},
 			``, "api_key"},
-		{"a client login from the environment logs in with its device id",
-			map[string]string{"TRACEFORCE_CLIENT_ID": "client-1", "TRACEFORCE_CLIENT_SECRET": "secret-1", "TRACEFORCE_DEVICE_ID": "cloud-collector-m365"},
-			``, "client cloud-collector-m365"},
+		{"a client login from the environment logs in with the SDK's device id",
+			map[string]string{"TRACEFORCE_CLIENT_ID": "client-1", "TRACEFORCE_CLIENT_SECRET": "secret-1"},
+			``, "client cloud-collector-terraform"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			for _, v := range []string{"TRACEFORCE_API_KEY", "TRACEFORCE_CLIENT_ID", "TRACEFORCE_CLIENT_SECRET", "TRACEFORCE_DEVICE_ID"} {
+			for _, v := range []string{"TRACEFORCE_API_KEY", "TRACEFORCE_CLIENT_ID", "TRACEFORCE_CLIENT_SECRET"} {
 				t.Setenv(v, tc.env[v])
 			}
 			f, endpoint := newFakeAPI(t)

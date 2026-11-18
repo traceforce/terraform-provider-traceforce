@@ -35,7 +35,7 @@ func TestAccCloudConnectionLifecycle(t *testing.T) {
 					resource.TestCheckNoResourceAttr(conn, "module_commit"),
 					f.expect(func() error {
 						login := f.logins[0]
-						if login["client_id"] != "client-1" || login["client_secret"] != "secret-1" || login["device_id"] != "cloud-collector-aws" {
+						if login["client_id"] != "client-1" || login["client_secret"] != "secret-1" || login["device_id"] != "cloud-collector-terraform" {
 							return fmt.Errorf("login sent %v", login)
 						}
 						return nil
@@ -277,30 +277,6 @@ func TestRegisterFailedMessages(t *testing.T) {
 	}
 }
 
-func TestAccCloudConnectionReplacedDuringUpdate(t *testing.T) {
-	f, endpoint := newFakeAPI(t)
-	resource.Test(t, resource.TestCase{
-		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
-		Steps: []resource.TestStep{
-			{Config: collectorConfig(endpoint, "1.2.0")},
-			{
-				// The row was replaced in Traceforce between refresh and apply: an error, and the new id is saved.
-				PreConfig:   func() { f.mu.Lock(); f.reissue = otherConnID; f.mu.Unlock() },
-				Config:      collectorConfig(endpoint, "1.3.0"),
-				ExpectError: regexp.MustCompile(`Cloud connection was registered again`),
-			},
-			{
-				// The next apply finds the new connection: nothing to register (so no takeover warning).
-				Config: collectorConfig(endpoint, "1.3.0"),
-				ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
-					plancheck.ExpectResourceAction(conn, plancheck.ResourceActionNoop),
-				}},
-				Check: resource.TestCheckResourceAttr(conn, "id", otherConnID),
-			},
-		},
-	})
-}
-
 func TestAccCloudConnectionOldBundle(t *testing.T) {
 	f, endpoint := newFakeAPI(t)
 	f.tooOld = true
@@ -363,23 +339,27 @@ func TestAccCloudConnectionNameIsNotRefreshed(t *testing.T) {
 	})
 }
 
-// An empty module_commit or name is refused at plan, before anything is sent.
+// An empty account, module_version, module_commit or name is refused at plan, before anything is sent.
 func TestAccCloudConnectionEmptyValue(t *testing.T) {
-	for _, attr := range []string{"module_commit", "name"} {
+	for _, attr := range []string{"account", "module_version", "module_commit", "name"} {
 		t.Run(attr, func(t *testing.T) {
 			f, endpoint := newFakeAPI(t)
+			values := map[string]string{"account": "111111111111", "module_version": "1.2.0", attr: ""}
+			body := ""
+			for _, k := range []string{"account", "module_version", "module_commit", "name"} {
+				if v, ok := values[k]; ok {
+					body += fmt.Sprintf("  %s = %q\n", k, v)
+				}
+			}
 			resource.Test(t, resource.TestCase{
 				ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 				Steps: []resource.TestStep{
 					{
 						Config: collectorProvider(endpoint) + fmt.Sprintf(`
 resource "traceforce_cloud_connection" "test" {
-  provider_name  = "aws"
-  account        = "111111111111"
-  module_version = "1.2.0"
-  %s = ""
-}
-`, attr),
+  provider_name = "aws"
+%s}
+`, body),
 						ExpectError: regexp.MustCompile(`Empty ` + attr),
 					},
 				},

@@ -2,7 +2,6 @@
 provider "traceforce" {
   client_id     = var.traceforce_client_id
   client_secret = var.traceforce_client_secret
-  device_id     = "cloud-collector-aws"
 }
 
 resource "traceforce_cloud_connection" "this" {
