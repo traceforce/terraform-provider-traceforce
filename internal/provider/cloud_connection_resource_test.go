@@ -104,14 +104,14 @@ func TestAccCloudConnectionDriftIsDetected(t *testing.T) {
 			{Config: collectorConfig(endpoint, "1.2.0")},
 			{
 				// Another workspace registered a different bundle: the plan registers ours again.
-				PreConfig:          func() { f.set("moduleVersion", "1.9.0") },
+				PreConfig:          func() { f.set("module_version", "1.9.0") },
 				Config:             collectorConfig(endpoint, "1.2.0"),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
 			},
 			{
 				// module_commit set in Traceforce but not in the configuration: cleared on the next apply.
-				PreConfig:          func() { f.set("moduleVersion", "1.2.0"); f.set("moduleCommit", "abc") },
+				PreConfig:          func() { f.set("module_version", "1.2.0"); f.set("module_commit", "abc") },
 				Config:             collectorConfig(endpoint, "1.2.0"),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
@@ -131,7 +131,7 @@ func TestAccCloudConnectionImportedUppercaseAccount(t *testing.T) {
 				PreConfig: func() {
 					f.mu.Lock()
 					f.row = map[string]any{"id": fakeConnID, "provider": "m365", "account": strings.ToLower(upper), "status": "connected",
-						"name": "Test", "moduleVersion": "1.2.0", "moduleCommit": nil, "regions": []string{}}
+						"name": "Test", "module_version": "1.2.0", "module_commit": nil, "regions": []string{}}
 					f.mu.Unlock()
 				},
 				Config:             connectionConfig(endpoint, "m365", upper, "1.2.0", "Test"),

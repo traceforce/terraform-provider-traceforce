@@ -131,7 +131,7 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 		f.existing = false
 		account, _ := body["account"].(string)
 		f.row["account"] = strings.ToLower(account)
-		f.row["moduleVersion"], f.row["moduleCommit"] = body["moduleVersion"], body["moduleCommit"]
+		f.row["module_version"], f.row["module_commit"] = body["module_version"], body["module_commit"]
 		if name, ok := body["name"]; ok {
 			f.row["name"] = name
 		}
