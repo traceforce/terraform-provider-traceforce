@@ -15,6 +15,7 @@ Records in Traceforce the collector (Lambda / Function App) and the identity dep
 ```terraform
 resource "traceforce_cloud_connection_deployment" "this" {
   connection_id = traceforce_cloud_connection.this.id
+  provider_name = traceforce_cloud_connection.this.provider_name
   collector_id  = aws_lambda_function.collector.arn
   identity_id   = aws_iam_role.collector.arn
   regions       = ["us-east-1"]
@@ -29,6 +30,7 @@ resource "traceforce_cloud_connection_deployment" "this" {
 - `collector_id` (String) AWS: Lambda ARN. Microsoft 365: Function App resource ID.
 - `connection_id` (String) ID of the traceforce_cloud_connection.
 - `identity_id` (String) AWS: IAM role ARN. Microsoft 365: managed identity object ID.
+- `provider_name` (String) Cloud of the connection: aws or m365. Set it from the connection: traceforce_cloud_connection.<name>.provider_name.
 
 ### Optional
 

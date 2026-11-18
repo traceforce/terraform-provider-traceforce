@@ -34,20 +34,33 @@ func TestAccCloudConnectionLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttr(conn, "name", "Test"),
 					resource.TestCheckNoResourceAttr(conn, "module_commit"),
 					f.expect(func() error {
-						login := f.logins[0]
-						if login["client_id"] != "client-1" || login["client_secret"] != "secret-1" || login["device_id"] != "cloud-collector-terraform" {
-							return fmt.Errorf("login sent %v", login)
+						// The provider's own login has no device id; the connection's is its cloud's collector.
+						first := f.logins[0]
+						if _, labelled := first["device_id"]; labelled || first["client_id"] != "client-1" || first["client_secret"] != "secret-1" {
+							return fmt.Errorf("first login sent %v", first)
+						}
+						for _, login := range f.logins {
+							if device, labelled := login["device_id"]; labelled && device != "cloud-collector-aws" {
+								return fmt.Errorf("a login sent device_id %v", device)
+							}
 						}
 						return nil
 					}),
 				),
 			},
 			{
-				// Import by id fills every attribute from Traceforce.
+				// Import by cloud and id fills every attribute from Traceforce.
 				ResourceName:      conn,
 				ImportState:       true,
-				ImportStateId:     fakeConnID,
+				ImportStateId:     "aws/" + fakeConnID,
 				ImportStateVerify: true,
+			},
+			{
+				// The cloud is needed to log in: an id alone is refused, before any call.
+				ResourceName:  conn,
+				ImportState:   true,
+				ImportStateId: fakeConnID,
+				ExpectError:   regexp.MustCompile(`Invalid import ID`),
 			},
 			{
 				// New bundle: registered again, same connection (no replace).
@@ -137,7 +150,7 @@ func TestAccCloudConnectionImportedUppercaseAccount(t *testing.T) {
 				Config:             connectionConfig(endpoint, "m365", upper, "1.2.0", "Test"),
 				ResourceName:       conn,
 				ImportState:        true,
-				ImportStateId:      fakeConnID,
+				ImportStateId:      "m365/" + fakeConnID,
 				ImportStatePersist: true,
 			},
 			{
@@ -244,7 +257,9 @@ func TestCreateWarnsOnlyForAnExistingConnection(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			r := &cloudConnectionResource{client: client}
+			clients := &cloudClients{}
+			clients.configure(client, traceforce.Credentials{}, endpoint, nil) // an api_key login: one client for every cloud
+			r := &cloudConnectionResource{clients: clients}
 			var s fwresource.SchemaResponse
 			r.Schema(ctx, fwresource.SchemaRequest{}, &s)
 			plan := tfsdk.Plan{Schema: s.Schema}

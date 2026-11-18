@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -24,22 +26,20 @@ import (
 // Ensure the implementation satisfies the expected interfaces.
 var (
 	_ resource.Resource                   = &cloudConnectionDeploymentResource{}
-	_ resource.ResourceWithConfigure      = &cloudConnectionDeploymentResource{}
 	_ resource.ResourceWithValidateConfig = &cloudConnectionDeploymentResource{}
 )
 
-// NewCloudConnectionDeploymentResource records in Traceforce the collector
-// Terraform created for a cloud connection, and clears it on destroy.
-func NewCloudConnectionDeploymentResource() resource.Resource {
-	return &cloudConnectionDeploymentResource{}
-}
-
+// cloudConnectionDeploymentResource records in Traceforce the collector
+// Terraform created for a cloud connection, and clears it on destroy. It keeps
+// the connection's cloud (provider_name) itself: Terraform deletes it before
+// the connection, in a run where the connection is not read first.
 type cloudConnectionDeploymentResource struct {
-	client *traceforce.Client
+	clients *cloudClients
 }
 
 type cloudConnectionDeploymentResourceModel struct {
 	ConnectionID types.String `tfsdk:"connection_id"`
+	ProviderName types.String `tfsdk:"provider_name"`
 	CollectorID  types.String `tfsdk:"collector_id"`
 	IdentityID   types.String `tfsdk:"identity_id"`
 	Regions      types.Set    `tfsdk:"regions"`
@@ -50,10 +50,6 @@ func (r *cloudConnectionDeploymentResource) Metadata(_ context.Context, req reso
 	resp.TypeName = req.ProviderTypeName + "_cloud_connection_deployment"
 }
 
-func (r *cloudConnectionDeploymentResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	r.client = clientFrom(req.ProviderData, &resp.Diagnostics)
-}
-
 func (r *cloudConnectionDeploymentResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Records in Traceforce the collector (Lambda / Function App) and the identity deployed for a " +
@@ -62,6 +58,12 @@ func (r *cloudConnectionDeploymentResource) Schema(_ context.Context, _ resource
 		Attributes: map[string]schema.Attribute{
 			"connection_id": schema.StringAttribute{
 				Description:   "ID of the traceforce_cloud_connection.",
+				Required:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+			},
+			"provider_name": schema.StringAttribute{
+				Description: "Cloud of the connection: aws or m365. Set it from the connection: " +
+					"traceforce_cloud_connection.<name>.provider_name.",
 				Required:      true,
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
@@ -88,9 +90,16 @@ func (r *cloudConnectionDeploymentResource) Schema(_ context.Context, _ resource
 	}
 }
 
-// ValidateConfig refuses an empty regions set (it would not clear the stored
-// regions) and a null or empty region (it would fail or send "" at apply).
+// ValidateConfig refuses an unknown cloud, an empty regions set (it would not
+// clear the stored regions) and a null or empty region (it would fail or send
+// "" at apply).
 func (r *cloudConnectionDeploymentResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var cloud types.String
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("provider_name"), &cloud)...)
+	if !cloud.IsNull() && !cloud.IsUnknown() && !slices.Contains(cloudProviders, cloud.ValueString()) {
+		resp.Diagnostics.AddAttributeError(path.Root("provider_name"), "Unknown cloud",
+			fmt.Sprintf("provider_name must be one of %s, got %q.", strings.Join(cloudProviders, ", "), cloud.ValueString()))
+	}
 	var regions types.Set
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("regions"), &regions)...)
 	if regions.IsNull() || regions.IsUnknown() {
@@ -161,18 +170,13 @@ func checkForCloud(cloud string, plan *cloudConnectionDeploymentResourceModel) d
 // record sends the deployment (create and update) and keeps deployed_at from the answer.
 func (r *cloudConnectionDeploymentResource) record(ctx context.Context, plan *cloudConnectionDeploymentResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
-	// The connection's cloud decides what the deployment may carry.
-	existing, err := r.client.GetCloudConnection(plan.ConnectionID.ValueString())
-	if err != nil {
-		diags.AddError("Error reading cloud connection", err.Error()+backendHint(err))
+	// The cloud decides what the deployment may carry. Traceforce refuses a
+	// provider_name that is not the connection's cloud (HTTP 403).
+	if diags.Append(checkForCloud(plan.ProviderName.ValueString(), plan)...); diags.HasError() {
 		return diags
 	}
-	if existing == nil {
-		diags.AddAttributeError(path.Root("connection_id"), "Cloud connection not found",
-			fmt.Sprintf("Connection %s does not exist in Traceforce (or is disconnected).", plan.ConnectionID.ValueString()))
-		return diags
-	}
-	if diags.Append(checkForCloud(existing.Provider, plan)...); diags.HasError() {
+	client := clientFor(r.clients, plan.ProviderName, &diags)
+	if client == nil {
 		return diags
 	}
 	// Known at apply (not computed); nil when left out: none sent, the stored ones are kept.
@@ -181,7 +185,7 @@ func (r *cloudConnectionDeploymentResource) record(ctx context.Context, plan *cl
 	if diags.HasError() {
 		return diags
 	}
-	conn, err := r.client.PutCloudConnectionDeployment(plan.ConnectionID.ValueString(), traceforce.CloudConnectionDeployment{
+	conn, err := client.PutCloudConnectionDeployment(plan.ConnectionID.ValueString(), traceforce.CloudConnectionDeployment{
 		CollectorID: plan.CollectorID.ValueString(),
 		IdentityID:  plan.IdentityID.ValueString(),
 		Regions:     regions,
@@ -220,7 +224,11 @@ func (r *cloudConnectionDeploymentResource) Read(ctx context.Context, req resour
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	conn, err := r.client.GetCloudConnection(state.ConnectionID.ValueString())
+	client := clientFor(r.clients, state.ProviderName, &resp.Diagnostics)
+	if client == nil {
+		return
+	}
+	conn, err := client.GetCloudConnection(state.ConnectionID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading cloud connection", err.Error())
 		return
@@ -259,7 +267,11 @@ func (r *cloudConnectionDeploymentResource) Delete(ctx context.Context, req reso
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if _, err := r.client.DeleteCloudConnectionDeployment(state.ConnectionID.ValueString()); err != nil {
+	client := clientFor(r.clients, state.ProviderName, &resp.Diagnostics)
+	if client == nil {
+		return
+	}
+	if _, err := client.DeleteCloudConnectionDeployment(state.ConnectionID.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Error clearing cloud connection deployment", err.Error()+backendHint(err))
 	}
 }

@@ -5,7 +5,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	traceforce "github.com/traceforce/traceforce-go-sdk"
@@ -33,6 +32,9 @@ type traceforceProvider struct {
 	// provider is built and ran locally, and "test" when running acceptance
 	// testing.
 	version string
+	// cloud gives the cloud-connection resources their API client per cloud.
+	// Filled in Configure; the resources are made before it runs.
+	cloud *cloudClients
 }
 
 // traceforceProviderModel describes the provider data model.
@@ -122,12 +124,15 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 	}
 
 	// API client login when client_id is given, else the api_key as before.
+	// This first login has no cloud: a plain token, for every resource but the
+	// cloud connections (those log in per cloud, see cloudClients).
 	var client *traceforce.Client
 	var err error
+	creds := traceforce.Credentials{ClientID: login.clientID, ClientSecret: login.clientSecret}
 	if login.clientID != "" {
-		client, err = traceforce.NewClientWithCredentials(
-			traceforce.Credentials{ClientID: login.clientID, ClientSecret: login.clientSecret}, login.endpoint, options)
+		client, err = traceforce.NewClientWithCredentials(creds, login.endpoint, options)
 	} else {
+		creds = traceforce.Credentials{}
 		client, err = traceforce.NewClient(login.apiKey, login.endpoint, options)
 	}
 	if err != nil {
@@ -144,6 +149,7 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 	// type Configure methods.
 	resp.DataSourceData = client
 	resp.ResourceData = client
+	p.cloud.configure(client, creds, login.endpoint, options)
 }
 
 // providerLogin is how the provider logs in: endpoint, and api_key or an API
@@ -241,8 +247,8 @@ func (p *traceforceProvider) Resources(ctx context.Context) []func() resource.Re
 		NewSourceAppResource,
 		NewPostConnectionResource,
 		NewSourceAppDatalakeLinkResource,
-		NewCloudConnectionResource,
-		NewCloudConnectionDeploymentResource,
+		func() resource.Resource { return &cloudConnectionResource{clients: p.cloud} },
+		func() resource.Resource { return &cloudConnectionDeploymentResource{clients: p.cloud} },
 	}
 }
 
@@ -262,27 +268,11 @@ func (p *traceforceProvider) Functions(ctx context.Context) []func() function.Fu
 	return []func() function.Function{}
 }
 
-// clientFrom gives a resource the logged-in API client that the provider's
-// Configure made (resp.ResourceData = client, above). Terraform hands it to each
-// resource's Configure as req.ProviderData. It is nil on the first call, before
-// the provider is configured; anything other than a *traceforce.Client is an error.
-// Used by the cloud-connection resources (the older resources keep their own copy).
-func clientFrom(data any, diags *diag.Diagnostics) *traceforce.Client {
-	if data == nil {
-		return nil
-	}
-	client, ok := data.(*traceforce.Client)
-	if !ok {
-		diags.AddError("Unexpected Provider Configuration",
-			fmt.Sprintf("Expected *traceforce.Client, got: %T. Please report this issue to the provider developers.", data))
-	}
-	return client
-}
-
 func New(version string) func() provider.Provider {
 	return func() provider.Provider {
 		return &traceforceProvider{
 			version: version,
+			cloud:   &cloudClients{},
 		}
 	}
 }

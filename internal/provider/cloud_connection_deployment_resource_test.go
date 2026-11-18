@@ -29,6 +29,7 @@ func deploymentConfig(endpoint, collectorID, extra string) string {
 	return collectorConfig(endpoint, "1.2.0") + fmt.Sprintf(`
 resource "traceforce_cloud_connection_deployment" "test" {
   connection_id = traceforce_cloud_connection.test.id
+  provider_name = traceforce_cloud_connection.test.provider_name
   collector_id  = %q
   identity_id   = "arn:aws:iam::111111111111:role/R"
 %s
@@ -214,16 +215,17 @@ func TestAccCloudConnectionDeploymentNewConnectionReplaces(t *testing.T) {
 		Steps: []resource.TestStep{
 			{Config: deploymentConfig(endpoint, lambdaA, "")},
 			{
-				// Another connection id: the deployment is replaced (the fake has no such connection, so nothing is sent).
+				// Another connection id: the deployment is replaced (the fake has no such connection, so the new PUT fails).
 				Config: collectorConfig(endpoint, "1.2.0") + fmt.Sprintf(`
 resource "traceforce_cloud_connection_deployment" "test" {
   connection_id = %q
+  provider_name = "aws"
   collector_id  = %q
   identity_id   = "arn:aws:iam::111111111111:role/R"
 }
 `, otherConnID, lambdaA),
 				ConfigPlanChecks: planAction(plancheck.ResourceActionDestroyBeforeCreate),
-				ExpectError:      regexp.MustCompile(`Cloud connection not found`),
+				ExpectError:      regexp.MustCompile(`Error recording cloud connection deployment`),
 			},
 		},
 	})
@@ -308,6 +310,51 @@ func TestAccCloudConnectionDeploymentDeleteOnOldBackend(t *testing.T) {
 			},
 			// Fixed backend: the next apply clears it.
 			{PreConfig: func() { f.with(func() { f.deleteDeployment = 0 }) }, Config: collectorConfig(endpoint, "1.2.0")},
+		},
+	})
+}
+
+// The deployment logs in as its own provider_name. A cloud that is not the
+// connection's is refused by Traceforce, and nothing is recorded.
+func TestAccCloudConnectionDeploymentWrongCloud(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: collectorConfig(endpoint, "1.2.0") + `
+resource "traceforce_cloud_connection_deployment" "test" {
+  connection_id = traceforce_cloud_connection.test.id
+  provider_name = "m365"
+  collector_id  = "/subscriptions/00000000-0000-4000-8000-000000000001/resourceGroups/rg/providers/Microsoft.Web/sites/c"
+  identity_id   = "00000000-0000-4000-8000-0000000000aa"
+}
+`,
+				ExpectError: regexp.MustCompile(`Only the cloud collector may call this`),
+			},
+		},
+	})
+	if len(f.puts) != 0 {
+		t.Fatalf("nothing should be recorded, got %d PUTs", len(f.puts))
+	}
+}
+
+func TestAccCloudConnectionDeploymentUnknownCloud(t *testing.T) {
+	_, endpoint := newFakeAPI(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: collectorConfig(endpoint, "1.2.0") + `
+resource "traceforce_cloud_connection_deployment" "test" {
+  connection_id = traceforce_cloud_connection.test.id
+  provider_name = "gcp"
+  collector_id  = "c"
+  identity_id   = "i"
+}
+`,
+				ExpectError: regexp.MustCompile(`provider_name must be one of aws, m365`),
+			},
 		},
 	})
 }

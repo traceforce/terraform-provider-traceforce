@@ -95,12 +95,17 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 	auth := r.Header.Get("Authorization")
 	notFound := map[string]string{"error": "Connection not found", "code": "connection_not_found"}
 
+	// Login: a plain token, or a cloud's collector token (device_id cloud-collector-<cloud>).
 	if r.Method == http.MethodPost && path == "/api-keys" {
 		f.logins = append(f.logins, body)
-		reply(w, 200, map[string]string{"access_token": "tok"})
+		token := "tok"
+		if device, _ := body["device_id"].(string); device != "" {
+			token += "-" + strings.TrimPrefix(device, "cloud-collector-")
+		}
+		reply(w, 200, map[string]string{"access_token": token})
 		return
 	}
-	if auth != "Bearer tok" && auth != "Bearer "+fakeAPIKey {
+	if !strings.HasPrefix(auth, "Bearer tok") && auth != "Bearer "+fakeAPIKey {
 		reply(w, 401, map[string]string{"error": "Authentication required"})
 		return
 	}
@@ -111,9 +116,18 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	conn := "/cloud-connections/"
+	cloud, _ := body["provider"].(string) // POST: the cloud of the body
 	if f.row != nil {
 		id, _ := f.row["id"].(string)
 		conn += id
+		if r.Method != http.MethodPost || path != "/cloud-connections" {
+			cloud, _ = f.row["provider"].(string)
+		}
+	}
+	// Like Traceforce: a client token must be the collector token of the connection's cloud.
+	if strings.HasPrefix(auth, "Bearer tok") && cloud != "" && auth != "Bearer tok-"+cloud {
+		reply(w, 403, map[string]string{"error": "Only the cloud collector may call this"})
+		return
 	}
 
 	switch {
@@ -183,8 +197,8 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 func (f *fakeAPI) usedLogin() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if len(f.logins) > 0 && len(f.auths) > 0 && f.auths[0] == "Bearer tok" {
-		return fmt.Sprintf("client %v", f.logins[0]["device_id"])
+	if len(f.logins) > 0 && len(f.auths) > 0 && strings.HasPrefix(f.auths[0], "Bearer tok-") {
+		return "client cloud-collector-" + strings.TrimPrefix(f.auths[0], "Bearer tok-")
 	}
 	if len(f.auths) > 0 && f.auths[0] == "Bearer "+fakeAPIKey {
 		return "api_key"
