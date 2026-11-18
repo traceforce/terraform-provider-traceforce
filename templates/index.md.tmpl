@@ -17,7 +17,7 @@ Log in one of two ways:
 - `api_key` (or `TRACEFORCE_API_KEY`): an API key.
 - `client_id` + `client_secret` (or `TRACEFORCE_CLIENT_ID` + `TRACEFORCE_CLIENT_SECRET`): one of your Traceforce API clients (Settings → API Clients). The provider gets a token at every run.
 
-`traceforce_cloud_connection` needs the second way. An `api_key` login is refused by Traceforce (HTTP 403), and only at apply.
+`traceforce_cloud_connection` needs the second way: the provider then logs in as the collector of the connection's cloud (`provider_name`) by itself. An `api_key` login is refused by Traceforce (HTTP 403), and only at apply.
 
 A value in the provider block wins over its environment variable, also across the two ways: a configured `api_key` is used even when `TRACEFORCE_CLIENT_ID` is exported. Both ways in the provider block is an error. Both in the environment (`TRACEFORCE_API_KEY` and `TRACEFORCE_CLIENT_ID`): `TRACEFORCE_API_KEY` is used, with a warning (so cloud connections fail: set `client_id` in the provider block or unset `TRACEFORCE_API_KEY`).
 

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -23,7 +24,6 @@ import (
 // Ensure the implementation satisfies the expected interfaces.
 var (
 	_ resource.Resource                   = &cloudConnectionResource{}
-	_ resource.ResourceWithConfigure      = &cloudConnectionResource{}
 	_ resource.ResourceWithImportState    = &cloudConnectionResource{}
 	_ resource.ResourceWithValidateConfig = &cloudConnectionResource{}
 )
@@ -31,15 +31,21 @@ var (
 // cloudProviders are the clouds with a customer-hosted collector.
 var cloudProviders = []string{"aws", "m365"}
 
-// NewCloudConnectionResource registers a customer cloud account (AWS account or
+// cloudConnectionResource registers a customer cloud account (AWS account or
 // Microsoft 365 tenant) with Traceforce at the start of terraform apply, and
-// disconnects it on destroy.
-func NewCloudConnectionResource() resource.Resource {
-	return &cloudConnectionResource{}
+// disconnects it on destroy. Every call uses the API client of the
+// connection's own cloud (provider_name).
+type cloudConnectionResource struct {
+	clients *cloudClients
 }
 
-type cloudConnectionResource struct {
-	client *traceforce.Client
+// clientFor is the API client for a cloud, or nil with the error added.
+func clientFor(clients *cloudClients, cloud types.String, diags *diag.Diagnostics) *traceforce.Client {
+	client, err := clients.forCloud(cloud.ValueString())
+	if err != nil {
+		diags.AddError("Unable to log in to Traceforce", err.Error())
+	}
+	return client
 }
 
 type cloudConnectionResourceModel struct {
@@ -56,18 +62,14 @@ func (r *cloudConnectionResource) Metadata(_ context.Context, req resource.Metad
 	resp.TypeName = req.ProviderTypeName + "_cloud_connection"
 }
 
-func (r *cloudConnectionResource) Configure(_ context.Context, req resource.ConfigureRequest, resp *resource.ConfigureResponse) {
-	r.client = clientFrom(req.ProviderData, &resp.Diagnostics)
-}
-
 func (r *cloudConnectionResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	replace := []planmodifier.String{stringplanmodifier.RequiresReplace()}
 	resp.Schema = schema.Schema{
 		Description: "A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy. " +
 			"If this organization already has the account (e.g. from an earlier collector, or a lost state), apply takes that " +
-			"connection over and warns. Import an existing connection with its ID. " +
-			"Needs the provider to log in with an API client (client_id + client_secret); an api_key login is refused by " +
-			"Traceforce (HTTP 403) only at apply.",
+			"connection over and warns. Import an existing connection as <cloud>/<id>, e.g. aws/<id>. " +
+			"Needs the provider to log in with an API client (client_id + client_secret); the provider logs in as the " +
+			"collector of provider_name by itself. An api_key login is refused by Traceforce (HTTP 403) only at apply.",
 		Attributes: map[string]schema.Attribute{
 			// "provider" is reserved in Terraform resource blocks.
 			"provider_name": schema.StringAttribute{
@@ -192,7 +194,11 @@ func (r *cloudConnectionResource) register(ctx context.Context, config tfsdk.Con
 	if diags.HasError() {
 		return nil, diags
 	}
-	conn, err := r.client.CreateCloudConnection(traceforce.CreateCloudConnectionRequest{
+	client := clientFor(r.clients, plan.ProviderName, &diags)
+	if client == nil {
+		return nil, diags
+	}
+	conn, err := client.CreateCloudConnection(traceforce.CreateCloudConnectionRequest{
 		Provider:      plan.ProviderName.ValueString(),
 		Account:       plan.Account.ValueString(),
 		Name:          name.ValueString(), // "" when not configured: no name sent
@@ -256,7 +262,11 @@ func (r *cloudConnectionResource) Read(ctx context.Context, req resource.ReadReq
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	conn, err := r.client.GetCloudConnection(state.ID.ValueString())
+	client := clientFor(r.clients, state.ProviderName, &resp.Diagnostics)
+	if client == nil {
+		return
+	}
+	conn, err := client.GetCloudConnection(state.ID.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Error reading cloud connection", err.Error())
 		return
@@ -293,12 +303,26 @@ func (r *cloudConnectionResource) Delete(ctx context.Context, req resource.Delet
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if err := r.client.DeleteCloudConnection(state.ID.ValueString()); err != nil {
+	client := clientFor(r.clients, state.ProviderName, &resp.Diagnostics)
+	if client == nil {
+		return
+	}
+	if err := client.DeleteCloudConnection(state.ID.ValueString()); err != nil {
 		resp.Diagnostics.AddError("Error disconnecting cloud connection", err.Error())
 	}
 }
 
-// ImportState takes an existing connection by its ID: terraform import traceforce_cloud_connection.this <id>.
+// ImportState takes an existing connection by its cloud and ID:
+// terraform import traceforce_cloud_connection.this aws/<id>. The cloud is
+// needed to log in before the connection can be read.
 func (r *cloudConnectionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
-	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
+	cloud, id, ok := strings.Cut(req.ID, "/")
+	if !ok || id == "" || !slices.Contains(cloudProviders, cloud) {
+		resp.Diagnostics.AddError("Invalid import ID",
+			fmt.Sprintf("Use <cloud>/<connection id>, for example aws/3b0c6d1e-1111-4222-8333-444455556666 (cloud: %s). Got %q.",
+				strings.Join(cloudProviders, ", "), req.ID))
+		return
+	}
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
+	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("provider_name"), cloud)...)
 }

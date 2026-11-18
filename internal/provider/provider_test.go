@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	traceforce "github.com/traceforce/traceforce-go-sdk"
 )
 
 const (
@@ -134,9 +135,9 @@ func TestAccProviderLogin(t *testing.T) {
 		{"both logins in the environment use TRACEFORCE_API_KEY, as before",
 			map[string]string{"TRACEFORCE_API_KEY": fakeAPIKey, "TRACEFORCE_CLIENT_ID": "client-1", "TRACEFORCE_CLIENT_SECRET": "secret-1"},
 			``, "api_key"},
-		{"a client login from the environment logs in with the SDK's device id",
+		{"a client login from the environment logs in as the connection's cloud collector",
 			map[string]string{"TRACEFORCE_CLIENT_ID": "client-1", "TRACEFORCE_CLIENT_SECRET": "secret-1"},
-			``, "client cloud-collector-terraform"},
+			``, "client cloud-collector-aws"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, v := range []string{"TRACEFORCE_API_KEY", "TRACEFORCE_CLIENT_ID", "TRACEFORCE_CLIENT_SECRET"} {
@@ -156,5 +157,55 @@ func TestAccProviderLogin(t *testing.T) {
 				}},
 			})
 		})
+	}
+}
+
+// An M365 connection logs in as the M365 collector, with the same provider block.
+func TestAccProviderLoginUsesTheConnectionsCloud(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{{
+			Config: connectionConfig(endpoint, "m365", "00000000-0000-4000-8000-0000000000aa", "1.2.0", "Test"),
+			Check: func(*terraform.State) error {
+				if got := f.usedLogin(); got != "client cloud-collector-m365" {
+					return fmt.Errorf("logged in with %s, want client cloud-collector-m365", got)
+				}
+				return nil
+			},
+		}},
+	})
+}
+
+// cloudClients: one login per cloud, kept; an api_key client serves every cloud.
+func TestCloudClients(t *testing.T) {
+	f, endpoint := newFakeAPI(t)
+	creds := traceforce.Credentials{ClientID: "client-1", ClientSecret: "secret-1"}
+	plain, err := traceforce.NewClientWithCredentials(creds, endpoint, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients := &cloudClients{}
+	if _, err := clients.forCloud("aws"); err == nil {
+		t.Fatal("want an error before the provider is configured")
+	}
+	clients.configure(plain, creds, endpoint, nil)
+	aws, err := clients.forCloud("aws")
+	again, _ := clients.forCloud("aws")
+	m365, err2 := clients.forCloud("m365")
+	if err != nil || err2 != nil || aws != again || aws == m365 || aws == plain {
+		t.Fatalf("want one kept client per cloud, got aws=%p again=%p m365=%p plain=%p (%v, %v)", aws, again, m365, plain, err, err2)
+	}
+	if _, err := clients.forCloud(""); err == nil {
+		t.Fatal("want an error for an unknown cloud")
+	}
+	if len(f.logins) != 3 || f.logins[1]["device_id"] != "cloud-collector-aws" || f.logins[2]["device_id"] != "cloud-collector-m365" {
+		t.Fatalf("want 3 logins (plain, aws, m365), got %v", f.logins)
+	}
+
+	keyClient, _ := traceforce.NewClient(fakeAPIKey, endpoint, nil)
+	clients.configure(keyClient, traceforce.Credentials{}, endpoint, nil)
+	if c, err := clients.forCloud("aws"); err != nil || c != keyClient {
+		t.Fatalf("an api_key login uses its one client, got %p (%v)", c, err)
 	}
 }
