@@ -33,7 +33,6 @@ type fakeAPI struct {
 	posts    []map[string]any
 	deletes  int
 	tooOld   bool   // answer 426 on register
-	reissue  string // register answers this id instead (the row was replaced in Traceforce)
 	existing bool   // the next register finds a row registered before (created: false)
 
 	// Deployment routes.
@@ -47,8 +46,12 @@ type fakeAPI struct {
 
 func newFakeAPI(t *testing.T) (*fakeAPI, string) {
 	f := &fakeAPI{}
-	srv := httptest.NewServer(http.HandlerFunc(f.serve))
-	t.Cleanup(srv.Close)
+	// https: the SDK logs in with an API client only over https. This process trusts the
+	// test certificate until the test ends (these tests do not run in parallel).
+	srv := httptest.NewTLSServer(http.HandlerFunc(f.serve))
+	old := http.DefaultTransport
+	http.DefaultTransport = srv.Client().Transport
+	t.Cleanup(func() { http.DefaultTransport = old; srv.Close() })
 	return f, srv.URL + "/api/v1"
 }
 
@@ -121,12 +124,8 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		created := f.row == nil && !f.existing
-		if f.row == nil || f.reissue != "" {
-			id := fakeConnID
-			if f.reissue != "" {
-				id, f.reissue = f.reissue, ""
-			}
-			f.row = map[string]any{"id": id, "provider": body["provider"], "status": "pending", "name": nil, "regions": []string{}}
+		if f.row == nil {
+			f.row = map[string]any{"id": fakeConnID, "provider": body["provider"], "status": "pending", "name": nil, "regions": []string{}}
 		}
 		f.existing = false
 		account, _ := body["account"].(string)
@@ -200,7 +199,6 @@ provider "traceforce" {
   endpoint      = %q
   client_id     = "client-1"
   client_secret = "secret-1"
-  device_id     = "cloud-collector-aws"
 }
 `, endpoint)
 }

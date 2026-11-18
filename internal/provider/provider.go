@@ -41,7 +41,6 @@ type traceforceProviderModel struct {
 	ApiKey       types.String `tfsdk:"api_key"`
 	ClientID     types.String `tfsdk:"client_id"`
 	ClientSecret types.String `tfsdk:"client_secret"`
-	DeviceID     types.String `tfsdk:"device_id"`
 	ExtraHeaders types.Map    `tfsdk:"extra_headers"`
 }
 
@@ -70,11 +69,6 @@ func (p *traceforceProvider) Schema(ctx context.Context, req provider.SchemaRequ
 				MarkdownDescription: "Client secret of that API client. Or `TRACEFORCE_CLIENT_SECRET`.",
 				Optional:            true,
 				Sensitive:           true,
-			},
-			"device_id": schema.StringAttribute{
-				Description:         "Who the token is for when logging in with client_id, e.g. cloud-collector-aws. May also be provided via TRACEFORCE_DEVICE_ID environment variable.",
-				MarkdownDescription: "Who the token is for when logging in with `client_id`, e.g. `cloud-collector-aws`. Or `TRACEFORCE_DEVICE_ID`.",
-				Optional:            true,
 			},
 			"endpoint": schema.StringAttribute{
 				Description:         "URI for Traceforce API. May also be provided via TRACEFORCE_ENDPOINT environment variable.",
@@ -132,7 +126,7 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 	var err error
 	if login.clientID != "" {
 		client, err = traceforce.NewClientWithCredentials(
-			traceforce.Credentials{ClientID: login.clientID, ClientSecret: login.clientSecret, DeviceID: login.deviceID}, login.endpoint, options)
+			traceforce.Credentials{ClientID: login.clientID, ClientSecret: login.clientSecret}, login.endpoint, options)
 	} else {
 		client, err = traceforce.NewClient(login.apiKey, login.endpoint, options)
 	}
@@ -153,9 +147,9 @@ func (p *traceforceProvider) Configure(ctx context.Context, req provider.Configu
 }
 
 // providerLogin is how the provider logs in: endpoint, and api_key or an API
-// client (client_id, client_secret, device_id).
+// client (client_id, client_secret).
 type providerLogin struct {
-	endpoint, apiKey, clientID, clientSecret, deviceID string
+	endpoint, apiKey, clientID, clientSecret string
 }
 
 // resolveLogin takes each setting from the configuration, or else from its
@@ -163,7 +157,7 @@ type providerLogin struct {
 //   - a configured value that is still unknown (e.g. made in the same apply) is an error;
 //   - api_key and client_id are two ways to log in; the one set in the
 //     configuration wins over the environment, and both at the same level is an error;
-//   - client_id needs client_secret; device_id is used with client_id only.
+//   - client_id needs client_secret.
 func resolveLogin(config traceforceProviderModel, getenv func(string) string) (providerLogin, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	for _, setting := range []struct {
@@ -176,7 +170,6 @@ func resolveLogin(config traceforceProviderModel, getenv func(string) string) (p
 		{config.ApiKey, "api_key", "API key", "TRACEFORCE_API_KEY"},
 		{config.ClientID, "client_id", "client ID", "TRACEFORCE_CLIENT_ID"},
 		{config.ClientSecret, "client_secret", "client secret", "TRACEFORCE_CLIENT_SECRET"},
-		{config.DeviceID, "device_id", "device ID", "TRACEFORCE_DEVICE_ID"},
 	} {
 		if setting.value.IsUnknown() {
 			diags.AddAttributeError(
@@ -202,7 +195,6 @@ func resolveLogin(config traceforceProviderModel, getenv func(string) string) (p
 		apiKey:       config.ApiKey.ValueString(),
 		clientID:     config.ClientID.ValueString(),
 		clientSecret: configured(config.ClientSecret, "TRACEFORCE_CLIENT_SECRET"),
-		deviceID:     configured(config.DeviceID, "TRACEFORCE_DEVICE_ID"),
 	}
 	if login.apiKey == "" && login.clientID == "" {
 		login.apiKey, login.clientID = getenv("TRACEFORCE_API_KEY"), getenv("TRACEFORCE_CLIENT_ID")

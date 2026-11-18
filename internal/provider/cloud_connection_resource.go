@@ -66,9 +66,8 @@ func (r *cloudConnectionResource) Schema(_ context.Context, _ resource.SchemaReq
 		Description: "A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy. " +
 			"If this organization already has the account (e.g. from an earlier collector, or a lost state), apply takes that " +
 			"connection over and warns. Import an existing connection with its ID. " +
-			"Needs the provider to log in with an API client (client_id + client_secret) and device_id = " +
-			"\"cloud-collector-<provider_name>\" (e.g. cloud-collector-aws for provider_name = \"aws\"). An api_key login, " +
-			"a client login without device_id, or the device_id of another cloud is refused by Traceforce (HTTP 403) only at apply.",
+			"Needs the provider to log in with an API client (client_id + client_secret); an api_key login is refused by " +
+			"Traceforce (HTTP 403) only at apply.",
 		Attributes: map[string]schema.Attribute{
 			// "provider" is reserved in Terraform resource blocks.
 			"provider_name": schema.StringAttribute{
@@ -121,10 +120,19 @@ func (r *cloudConnectionResource) Schema(_ context.Context, _ resource.SchemaReq
 // never match); an empty name (no name is sent, so the state would keep ""
 // while Traceforce keeps the old name, with no diff ever).
 func (r *cloudConnectionResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var cloud, commit, name types.String
+	var cloud, commit, name, account, version types.String
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("provider_name"), &cloud)...)
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("module_commit"), &commit)...)
 	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("name"), &name)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("account"), &account)...)
+	resp.Diagnostics.Append(req.Config.GetAttribute(ctx, path.Root("module_version"), &version)...)
+	// Required, but "" passes Terraform's own check and Traceforce refuses it only at apply.
+	if !account.IsUnknown() && strings.TrimSpace(account.ValueString()) == "" {
+		resp.Diagnostics.AddAttributeError(path.Root("account"), "Empty account", "Set the AWS account ID or Microsoft 365 tenant ID.")
+	}
+	if !version.IsUnknown() && strings.TrimSpace(version.ValueString()) == "" {
+		resp.Diagnostics.AddAttributeError(path.Root("module_version"), "Empty module_version", "Set the collector bundle version, e.g. 1.2.0.")
+	}
 	if !commit.IsNull() && !commit.IsUnknown() && commit.ValueString() == "" {
 		resp.Diagnostics.AddAttributeError(path.Root("module_commit"), "Empty module_commit",
 			"Set a commit, or leave module_commit out (e.g. module_commit = var.commit == \"\" ? null : var.commit).")
@@ -262,10 +270,10 @@ func (r *cloudConnectionResource) Read(ctx context.Context, req resource.ReadReq
 	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
+// Update registers again: the API keeps the connection's id (one row per org, cloud and account).
 func (r *cloudConnectionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var plan, state cloudConnectionResourceModel
+	var plan cloudConnectionResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
-	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -275,15 +283,6 @@ func (r *cloudConnectionResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 	fromAnswer(&plan, conn)
-	// The connection was removed in Traceforce after the last refresh, so the
-	// API registered the account again under a new id. Terraform does not allow
-	// a new id in an update, so this apply fails; the new connection is saved
-	// in the state, so the next apply finds it (and shows no takeover warning).
-	if conn.ID != state.ID.ValueString() {
-		resp.Diagnostics.AddError("Cloud connection was registered again",
-			fmt.Sprintf("Connection %s no longer existed in Traceforce, so the account was registered again as %s. "+
-				"The state now has the new connection: run terraform apply again.", state.ID.ValueString(), conn.ID))
-	}
 	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
