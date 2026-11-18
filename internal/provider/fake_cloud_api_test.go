@@ -146,7 +146,7 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 		reply(w, 200, f.row)
 	case r.Method == http.MethodPut && path == conn+"/deployment":
 		f.calls, f.puts = append(f.calls, "PUT deployment"), append(f.puts, body)
-		f.row["collectorId"], f.row["identityId"] = body["collectorId"], body["identityId"]
+		f.row["collector_id"], f.row["identity_id"] = body["collector_id"], body["identity_id"]
 		if regions, ok := body["regions"].([]any); ok {
 			stored := make([]string, len(regions))
 			for i, r := range regions {
@@ -157,9 +157,9 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 			}
 			f.row["regions"] = stored
 		}
-		f.row["deployedAt"] = "2026-10-30T10:00:00Z"
+		f.row["deployed_at"] = "2026-10-30T10:00:00Z"
 		if f.putOmitsDeployedAt {
-			f.row["deployedAt"] = nil
+			f.row["deployed_at"] = nil
 		}
 		reply(w, 200, f.row)
 	case r.Method == http.MethodDelete && path == conn+"/deployment" && f.deleteDeployment == 404:
@@ -168,7 +168,7 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(405)
 	case r.Method == http.MethodDelete && path == conn+"/deployment":
 		f.calls = append(f.calls, "DELETE deployment")
-		f.row["collectorId"], f.row["identityId"], f.row["deployedAt"] = nil, nil, nil
+		f.row["collector_id"], f.row["identity_id"], f.row["deployed_at"] = nil, nil, nil
 		reply(w, 200, f.row)
 	case r.Method == http.MethodDelete && path == conn:
 		f.calls = append(f.calls, "DELETE connection")

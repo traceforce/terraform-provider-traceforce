@@ -56,7 +56,7 @@ func TestAccCloudConnectionDeploymentLifecycle(t *testing.T) {
 					resource.TestCheckResourceAttr(deployment, "deployed_at", "2026-10-30T10:00:00Z"),
 					resource.TestCheckResourceAttr(deployment, "regions.#", "1"),
 					f.expect(func() error {
-						if len(f.puts) != 1 || f.puts[0]["collectorId"] != lambdaA || fmt.Sprint(f.puts[0]["regions"]) != "[us-east-1]" {
+						if len(f.puts) != 1 || f.puts[0]["collector_id"] != lambdaA || fmt.Sprint(f.puts[0]["regions"]) != "[us-east-1]" {
 							return fmt.Errorf("PUT bodies %v", f.puts)
 						}
 						return nil
@@ -69,7 +69,7 @@ func TestAccCloudConnectionDeploymentLifecycle(t *testing.T) {
 				Config:           deploymentConfig(endpoint, lambdaB, east),
 				ConfigPlanChecks: planAction(plancheck.ResourceActionUpdate),
 				Check: f.expect(func() error {
-					if len(f.puts) != 2 || f.lastPut()["collectorId"] != lambdaB {
+					if len(f.puts) != 2 || f.lastPut()["collector_id"] != lambdaB {
 						return fmt.Errorf("PUT bodies %v", f.puts)
 					}
 					return nil
@@ -79,7 +79,7 @@ func TestAccCloudConnectionDeploymentLifecycle(t *testing.T) {
 				// The deployment alone is removed from the configuration: it is cleared in Traceforce.
 				Config: collectorConfig(endpoint, "1.2.0"),
 				Check: f.expect(func() error {
-					if last := f.calls[len(f.calls)-1]; last != "DELETE deployment" || f.row["deployedAt"] != nil || f.row["collectorId"] != nil {
+					if last := f.calls[len(f.calls)-1]; last != "DELETE deployment" || f.row["deployed_at"] != nil || f.row["collector_id"] != nil {
 						return fmt.Errorf("calls %v, row %v", f.calls, f.row)
 					}
 					return nil
@@ -107,9 +107,9 @@ func TestAccCloudConnectionDeploymentDrift(t *testing.T) {
 		value  any
 		action plancheck.ResourceActionType
 	}{
-		{"collector changed elsewhere", "collectorId", lambdaB, plancheck.ResourceActionUpdate},
-		{"identity changed elsewhere", "identityId", "arn:aws:iam::111111111111:role/Other", plancheck.ResourceActionUpdate},
-		{"deployment cleared in Traceforce", "deployedAt", nil, plancheck.ResourceActionCreate},
+		{"collector changed elsewhere", "collector_id", lambdaB, plancheck.ResourceActionUpdate},
+		{"identity changed elsewhere", "identity_id", "arn:aws:iam::111111111111:role/Other", plancheck.ResourceActionUpdate},
+		{"deployment cleared in Traceforce", "deployed_at", nil, plancheck.ResourceActionCreate},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f, endpoint := newFakeAPI(t)
@@ -122,7 +122,7 @@ func TestAccCloudConnectionDeploymentDrift(t *testing.T) {
 						Config:           deploymentConfig(endpoint, lambdaA, ""),
 						ConfigPlanChecks: planAction(tc.action),
 						Check: f.expect(func() error {
-							if len(f.puts) != 2 || f.row["collectorId"] != lambdaA || f.row["identityId"] != role || f.row["deployedAt"] == nil {
+							if len(f.puts) != 2 || f.row["collector_id"] != lambdaA || f.row["identity_id"] != role || f.row["deployed_at"] == nil {
 								return fmt.Errorf("not recorded again: puts %d, row %v", len(f.puts), f.row)
 							}
 							return nil
