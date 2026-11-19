@@ -3,7 +3,7 @@
 page_title: "traceforce_cloud_connection Resource - traceforce"
 subcategory: ""
 description: |-
-  A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy. If this organization already has the account (e.g. from an earlier collector, or a lost state), apply takes that connection over and warns. Import an existing connection as <cloud>/<id>, e.g. aws/<id>. Needs the provider to log in with an API client (client_id + client_secret); the provider logs in as the collector of provider_name by itself. An api_key login is refused by Traceforce (HTTP 403) only at apply.
+  A customer cloud account Traceforce collects from. Registered at the start of apply; disconnected on destroy. If this organization already has the account (e.g. from an earlier collector, or a lost state), apply takes that connection over and warns. Import an existing connection as /, e.g. aws/. Needs the provider to log in with an API client (client_id + client_secret); the provider logs in as the collector of provider_name by itself. An api_key login is refused by Traceforce (HTTP 403) only at apply.
 ---
 
 # traceforce_cloud_connection (Resource)
