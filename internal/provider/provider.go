@@ -248,6 +248,7 @@ func (p *traceforceProvider) Resources(ctx context.Context) []func() resource.Re
 		NewPostConnectionResource,
 		NewSourceAppDatalakeLinkResource,
 		func() resource.Resource { return &cloudConnectionResource{clients: p.cloud} },
+		func() resource.Resource { return &cloudConnectionDeploymentResource{clients: p.cloud} },
 	}
 }
 
