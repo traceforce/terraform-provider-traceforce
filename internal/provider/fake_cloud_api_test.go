@@ -32,8 +32,8 @@ type fakeAPI struct {
 	row      map[string]any // nil = no connection
 	posts    []map[string]any
 	deletes  int
-	tooOld   bool   // answer 426 on register
-	existing bool   // the next register finds a row registered before (created: false)
+	tooOld   bool // answer 426 on register
+	existing bool // the next register finds a row registered before (created: false)
 
 	// Deployment routes.
 	calls              []string // "PUT deployment", "DELETE deployment", "DELETE connection", in order
