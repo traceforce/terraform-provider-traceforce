@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -33,6 +34,14 @@ type fakeAPI struct {
 	deletes  int
 	tooOld   bool // answer 426 on register
 	existing bool // the next register finds a row registered before (created: false)
+
+	// Deployment routes.
+	calls              []string // "PUT deployment", "DELETE deployment", "DELETE connection", in order
+	puts               []map[string]any
+	oldBackend         bool // no deployment routes: a plain 404 without the API's code
+	putOmitsDeployedAt bool // PUT answers without deployedAt
+	sortsRegions       bool // the backend stores regions sorted (a different order than sent)
+	deleteDeployment   int  // DELETE deployment answers: 0 normally, 404 "connection not found", 405 a backend without the route
 }
 
 func newFakeAPI(t *testing.T) (*fakeAPI, string) {
@@ -57,6 +66,16 @@ func (f *fakeAPI) set(key string, value any) {
 	defer f.mu.Unlock()
 	f.row[key] = value
 }
+
+// with changes the fake's settings under its lock, e.g. f.with(func() { f.deleteDeployment = 405 }).
+func (f *fakeAPI) with(change func()) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	change()
+}
+
+// lastPut is the body of the newest PUT (call under the fake's lock, e.g. in f.expect).
+func (f *fakeAPI) lastPut() map[string]any { return f.puts[len(f.puts)-1] }
 
 // expect checks what the fake API saw, under its lock.
 func (f *fakeAPI) expect(check func() error) func(*terraform.State) error {
@@ -91,6 +110,11 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.auths = append(f.auths, auth)
+	if f.oldBackend && strings.HasSuffix(path, "/deployment") {
+		w.WriteHeader(404)
+		_, _ = w.Write([]byte("<html>404: This page could not be found.</html>"))
+		return
+	}
 	conn := "/cloud-connections/"
 	cloud, _ := body["provider"].(string) // POST: the cloud of the body
 	if f.row != nil {
@@ -133,7 +157,34 @@ func (f *fakeAPI) serve(w http.ResponseWriter, r *http.Request) {
 		reply(w, 404, notFound)
 	case r.Method == http.MethodGet && path == conn:
 		reply(w, 200, f.row)
+	case r.Method == http.MethodPut && path == conn+"/deployment":
+		f.calls, f.puts = append(f.calls, "PUT deployment"), append(f.puts, body)
+		f.row["collector_id"], f.row["identity_id"] = body["collector_id"], body["identity_id"]
+		if regions, ok := body["regions"].([]any); ok {
+			stored := make([]string, len(regions))
+			for i, r := range regions {
+				stored[i], _ = r.(string)
+			}
+			if f.sortsRegions {
+				sort.Strings(stored)
+			}
+			f.row["regions"] = stored
+		}
+		f.row["deployed_at"] = "2026-10-30T10:00:00Z"
+		if f.putOmitsDeployedAt {
+			f.row["deployed_at"] = nil
+		}
+		reply(w, 200, f.row)
+	case r.Method == http.MethodDelete && path == conn+"/deployment" && f.deleteDeployment == 404:
+		reply(w, 404, notFound)
+	case r.Method == http.MethodDelete && path == conn+"/deployment" && f.deleteDeployment == 405:
+		w.WriteHeader(405)
+	case r.Method == http.MethodDelete && path == conn+"/deployment":
+		f.calls = append(f.calls, "DELETE deployment")
+		f.row["collector_id"], f.row["identity_id"], f.row["deployed_at"] = nil, nil, nil
+		reply(w, 200, f.row)
 	case r.Method == http.MethodDelete && path == conn:
+		f.calls = append(f.calls, "DELETE connection")
 		f.deletes++
 		f.row = nil
 		reply(w, 200, map[string]bool{"disconnected": true})
